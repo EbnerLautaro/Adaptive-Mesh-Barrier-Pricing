@@ -14,9 +14,7 @@ Características del modelo:
 
 import numpy as np
 from dataclasses import dataclass
-from .enums import OptionType, BarrierType, ExerciseStyle
-
-from scipy.stats import norm
+from .enums import OptionType, BarrierType
 
 
 @dataclass
@@ -32,7 +30,6 @@ class OptionParameters:
     q: float = 0.0  # Dividendo continuo
     option_type: OptionType = OptionType.CALL
     barrier_type: BarrierType = BarrierType.UP_AND_OUT
-    exercise_style: ExerciseStyle = ExerciseStyle.EUROPEAN
 
 
 class TrinomialTreeBarrier:
@@ -91,26 +88,26 @@ class TrinomialTreeBarrier:
         # Calcular probabilidades
         self._calculate_probabilities()
 
-    # def _adjust_for_barrier_alignment(self):
-    #     """
-    #     Ajusta h para que haya una capa de nodos exactamente en la barrera.
-    #     Basado en Hull Sección 27.6, ecuación en página 657.
-    #     """
-    #     # Calcular el número de pasos necesarios para alcanzar la barrera
-    #     ln_ratio = np.log(self.params.H / self.params.S0)
+    def _adjust_for_barrier_alignment(self):
+        """
+        Ajusta h para que haya una capa de nodos exactamente en la barrera.
+        Basado en Hull Sección 27.6, ecuación en página 657.
+        """
+        # Calcular el número de pasos necesarios para alcanzar la barrera
+        ln_ratio = np.log(self.params.H / self.params.S0)
 
-    #     if abs(ln_ratio) > 1e-10:  # Evitar división por cero
-    #         # Calcular N según Hull
-    #         N = int(
-    #             np.round(ln_ratio / (self.params.sigma * np.sqrt(3 * self.dt)) + 0.5)
-    #         )
+        if abs(ln_ratio) > 1e-10:  # Evitar división por cero
+            # Calcular N según Hull
+            N = int(
+                np.round(ln_ratio / (self.params.sigma * np.sqrt(3 * self.dt)) + 0.5)
+            )
 
-    #         if N != 0:
-    #             # Ajustar h para que exactamente N pasos lleguen a la barrera
-    #             self.h = ln_ratio / N
+            if N != 0:
+                # Ajustar h para que exactamente N pasos lleguen a la barrera
+                self.h = ln_ratio / N
 
-    #             # Actualizar lambda efectivo
-    #             self.lambda_param = self.h**2 / (self.params.sigma**2 * self.dt)
+                # Actualizar lambda efectivo
+                self.lambda_param = self.h**2 / (self.params.sigma**2 * self.dt)
 
     def _calculate_probabilities(self):
         """
@@ -385,82 +382,3 @@ class TrinomialTreeBarrier:
                 )
 
         return self.option_values[0, center]
-
-
-def main():
-    """
-    Función principal para demostrar el uso del modelo trinomial para opciones barrera
-    """
-    # Parámetros de ejemplo según el paper
-    params = OptionParameters(
-        S0=100.0,  # Precio actual
-        K=100.0,  # Strike
-        H=90.0,  # Barrera inferior
-        T=1.0,  # 1 año
-        r=0.10,  # 10% tasa libre de riesgo
-        sigma=0.25,  # 25% volatilidad
-        q=0.0,  # Sin dividendos
-        option_type=OptionType.CALL,
-        barrier_type=BarrierType.DOWN_AND_OUT,
-        exercise_style=ExerciseStyle.EUROPEAN,
-    )
-
-    # Crear árbol trinomial
-    tree = TrinomialTreeBarrier(params, n_steps=100)
-
-    # Calcular precio de la opción
-    option_price = tree.price_option()
-
-    print("Parámetros de la Opción Barrera:")
-    print(f"- Precio actual (S0): {params.S0}")
-    print(f"- Strike (K): {params.K}")
-    print(f"- Barrera (H): {params.H}")
-    print(f"- Tiempo (T): {params.T}")
-    print(f"- Tasa (r): {params.r}")
-    print(f"- Volatilidad (σ): {params.sigma}")
-    print(f"- Tipo: {params.option_type.value}")
-    print(f"- Barrera: {params.barrier_type.value}")
-    print("\nParámetros del Árbol:")
-    print(f"- Lambda (λ): {tree.lambda_param:.4f}")
-    print(f"- h: {tree.h:.6f}")
-    print(
-        f"- Probabilidades: p_u={tree.p_u:.4f}, p_m={tree.p_m:.4f}, p_d={tree.p_d:.4f}"
-    )
-    print(f"\nPrecio de la opción: {option_price:.4f}")
-
-    # Valor teórico según Merton (1973) - Ecuación (8) del paper
-    # Para down-and-out call
-
-    def black_scholes_call(S, K, T, r, sigma):
-        d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
-        d2 = d1 - sigma * np.sqrt(T)
-        return S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
-
-    if (
-        params.barrier_type == BarrierType.DOWN_AND_OUT
-        and params.option_type == OptionType.CALL
-    ):
-        # Fórmula de Merton para down-and-out call
-        CBS = black_scholes_call(params.S0, params.K, params.T, params.r, params.sigma)
-        CBS_barrier = black_scholes_call(
-            params.H**2 / params.S0, params.K, params.T, params.r, params.sigma
-        )
-        theoretical = (
-            CBS
-            - (params.H / params.S0) ** (2 * (params.r / (params.sigma**2) - 0.5))
-            * CBS_barrier
-        )
-        print(f"Valor teórico (Merton): {theoretical:.4f}")
-        print(f"Error: {abs(option_price - theoretical):.4f}")
-
-    # Análisis de convergencia
-    print("\nAnálisis de Convergencia:")
-    steps_list = [25, 50, 100, 200, 500]
-    for steps in steps_list:
-        tree_conv = TrinomialTreeBarrier(params=params, n_steps=steps)
-        price_conv = tree_conv.price_option()
-        print(f"- {steps} pasos: {price_conv:.4f}")
-
-
-if __name__ == "__main__":
-    main()

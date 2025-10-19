@@ -16,8 +16,18 @@ class BarrierType(Enum):
     UP_AND_IN = "up_and_in"  # Barrera superior knock-in
     DOWN_AND_IN = "down_and_in"  # Barrera inferior knock-in
 
+    def is_knockout(self) -> bool:
+        """Verifica si el tipo de barrera es knock-out.
 
-class ExerciseStyle(Enum):
-    """Estilos de ejercicio"""
+        Returns:
+            True si es knock-out, False si es knock-in
+        """
+        return self in {BarrierType.UP_AND_OUT, BarrierType.DOWN_AND_OUT}
 
-    EUROPEAN = "european"
+    def is_knockin(self) -> bool:
+        """Verifica si el tipo de barrera es knock-in.
+
+        Returns:
+            True si es knock-in, False si es knock-out
+        """
+        return self in {BarrierType.UP_AND_IN, BarrierType.DOWN_AND_IN}
