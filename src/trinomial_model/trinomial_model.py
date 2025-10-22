@@ -15,6 +15,8 @@ Características del modelo:
 import numpy as np
 from dataclasses import dataclass
 from .enums import OptionType, BarrierType
+from .barrier_handler import BarrierHandler
+from .tree_builder import TreeBuilder
 
 
 @dataclass
@@ -59,8 +61,18 @@ class TrinomialTreeBarrier:
         # Parámetro lambda del paper (λ = 3 es recomendado)
         self.lambda_param = lambda_param
 
+        # Inicializar manejador de barreras
+        self.barrier_handler = BarrierHandler(
+            barrier_level=params.H, barrier_type=params.barrier_type
+        )
+
         # Inicializar parámetros del árbol
         self._initialize_tree_parameters()
+
+        # Inicializar constructor del árbol de precios
+        self.tree_builder = TreeBuilder(
+            S0=params.S0, u=self.u, d=self.d, steps=n_steps
+        )
 
         # Matrices para almacenar precios y valores
         self.S = None
@@ -200,36 +212,8 @@ class TrinomialTreeBarrier:
         Returns:
             Matriz con los precios del subyacente en cada nodo
         """
-        # Crear matriz para almacenar precios
-        # para un arbol trinomial con n pasos, vamos a tener n+1 filas y (2n)+1 columnas
-        self.S = np.zeros((self.n_steps + 1, 2 * self.n_steps + 1))
-
-        # Nodo central
-        # como la numeracion de columnas va de 0 a 2n, el centro es n
-        center = self.n_steps
-
-        # Precio inicial
-        self.S[0, center] = self.params.S0
-
-        # Construir árbol hacia adelante
-        for i in range(self.n_steps):  # paso temporal (tiempo)
-            for j in range(center - i, center + i + 1):  # nivel de precio (espacial)
-                # notar que en la primera iteracion, i=0, j=[center]
-                # ^^^ acordarse que range no es inclusivo al final, por eso el +1
-                if self.S[i, j] == 0:
-                    continue  # Saltar nodos que corresponden a precios no alcanzables en ese paso de tiempo
-
-                # Movimiento hacia arriba
-                assert j + 1 < self.S.shape[1]  # Asegurar que no se salga del rango
-                self.S[i + 1, j + 1] = self.S[i, j] * self.u
-
-                # Sin cambio (nodo medio)
-                self.S[i + 1, j] = self.S[i, j] * self.m
-
-                # Movimiento hacia abajo
-                assert j - 1 >= 0  # Asegurar que no se salga del rango
-                self.S[i + 1, j - 1] = self.S[i, j] * self.d
-
+        # Delegar la construcción del árbol al TreeBuilder
+        self.S = self.tree_builder.build_price_tree()
         return self.S
 
     def _payoff(self, S: float) -> float:
@@ -247,56 +231,54 @@ class TrinomialTreeBarrier:
         else:
             return max(self.params.K - S, 0)
 
-    def _is_beyond_barrier(self, S: float) -> bool:
+    def _get_discount_factor(self) -> float:
         """
-        Verifica si el precio ha cruzado la barrera
-
-        Args:
-            S: Precio del subyacente
+        Calcula el factor de descuento para un paso temporal
 
         Returns:
-            True si ha cruzado la barrera
+            Factor de descuento e^(-r*dt)
         """
-        if self.params.barrier_type in [BarrierType.UP_AND_OUT, BarrierType.UP_AND_IN]:
-            return S >= self.params.H
-        else:
-            return S <= self.params.H
+        return np.exp(-self.params.r * self.dt)
 
-    def _apply_barrier_condition(self, S: float, option_value: float) -> float:
+    def _initialize_terminal_payoffs(self) -> None:
         """
-        Aplica las condiciones de barrera al valor de la opción
+        Calcula y aplica los payoffs en los nodos terminales considerando barreras
+        """
+        assert self.S is not None and self.option_values is not None
+
+        for j in range(self.option_values.shape[1]):
+            if self.S[self.n_steps, j] == 0:
+                continue
+
+            # Calcular payoff
+            payoff = self._payoff(self.S[self.n_steps, j])
+
+            # Aplicar condición de barrera
+            self.option_values[self.n_steps, j] = (
+                self.barrier_handler.apply_barrier_condition(
+                    self.S[self.n_steps, j], payoff
+                )
+            )
+
+    def _backward_induction(self, discount_factor: float) -> None:
+        """
+        Realiza la inducción hacia atrás en el árbol (backward induction)
 
         Args:
-            S: Precio del subyacente
-            option_value: Valor de la opción sin considerar barrera
-
-        Returns:
-            Valor de la opción considerando la barrera
+            discount_factor: Factor de descuento e^(-r*dt)
         """
-        # Opciones knock-out
-        if self.params.barrier_type in [
-            BarrierType.UP_AND_OUT,
-            BarrierType.DOWN_AND_OUT,
-        ]:
+        assert self.S is not None and self.option_values is not None
 
-            # Knock-out: valor es 0 si cruza la barrera
-            if self._is_beyond_barrier(S):
-                return 0.0
+        center = self.n_steps
 
-            # Knock-out: mantienen su valor si no cruza la barrera
-            else:
-                return option_value
+        for i in range(self.n_steps - 1, -1, -1):
+            for j in range(center - i, center + i + 1):
+                if self.S[i, j] == 0:
+                    continue
 
-        # Opciones knock-in
-        else:
-
-            # Knock-in: se activan al cruzar la barrera
-            if self._is_beyond_barrier(S):
-                return option_value
-
-            # Knock-in: valor es 0 si NO se cruza la barrera
-            else:
-                return 0.0
+                self.option_values[i, j] = self._calculate_node_value(
+                    i, j, discount_factor
+                )
 
     def _calculate_node_value(self, i: int, j: int, discount_factor: float) -> float:
         """
@@ -321,23 +303,10 @@ class TrinomialTreeBarrier:
             + self.p_d * self.option_values[i + 1, j - 1]
         )
 
-        is_beyond = self._is_beyond_barrier(self.S[i, j])
-
-        # Tabla de decisión
-        if self.params.barrier_type in [
-            BarrierType.UP_AND_OUT,
-            BarrierType.DOWN_AND_OUT,
-        ]:
-            if is_beyond:
-                return 0.0
-            else:
-                return expected_value
-
-        else:
-            if is_beyond:
-                return expected_value
-            else:
-                return 0.0
+        # Aplicar condición de barrera usando el BarrierHandler
+        return self.barrier_handler.apply_barrier_condition(
+            self.S[i, j], expected_value
+        )
 
     def price_option(self) -> float:
         """
@@ -352,33 +321,16 @@ class TrinomialTreeBarrier:
 
         # Crear matriz para valores de la opción
         self.option_values = np.zeros_like(self.S)
-        center = self.n_steps
 
-        # calculamos los payoffs del final
-        for j in range(self.option_values.shape[1]):
+        # Calcular payoffs en nodos terminales
+        self._initialize_terminal_payoffs()
 
-            assert self.S[self.n_steps, j] != 0, "fallo en la construccion del arbol"
-
-            # Calcular payoff
-            payoff = self._payoff(self.S[self.n_steps, j])
-
-            # Aplicar condición de barrera
-            self.option_values[self.n_steps, j] = self._apply_barrier_condition(
-                self.S[self.n_steps, j], payoff
-            )
-
-        # Factor de descuento
-        discount_factor = np.exp(-self.params.r * self.dt)
+        # Obtener factor de descuento
+        discount_factor = self._get_discount_factor()
 
         # Retroceder en el árbol (backward induction)
-        for i in range(self.n_steps - 1, -1, -1):
-            # i = n-1, n-2, ..., 1, 0
-            for j in range(center - i, center + i + 1):
-                # j in [center - i, ... , center + i]
+        self._backward_induction(discount_factor)
 
-                assert self.S[i, j] != 0, "fallo en la construccion del arbol"
-                self.option_values[i, j] = self._calculate_node_value(
-                    i, j, discount_factor
-                )
-
+        # Retornar el valor en el nodo inicial
+        center = self.n_steps
         return self.option_values[0, center]

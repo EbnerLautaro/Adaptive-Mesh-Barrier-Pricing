@@ -5,18 +5,17 @@ class TreeBuilder:
     """Construye el árbol trinomial de precios del subyacente.
 
     Attributes:
-        n_steps: Número de pasos temporales
         S0: Precio inicial del subyacente
         u: Factor de movimiento hacia arriba
+        m: Factor de movimiento medio = 1
         d: Factor de movimiento hacia abajo
-        m: Factor de movimiento medio (sin cambio)
+        steps: Número de pasos temporales
     """
 
     def __init__(
         self,
         S0: float,
         u: float,
-        m: float,
         d: float,
         steps: int,
     ):
@@ -27,13 +26,23 @@ class TreeBuilder:
             S0: Precio inicial del subyacente
             u: Factor de movimiento hacia arriba
             d: Factor de movimiento hacia abajo
-            m: Factor de movimiento medio (default 1.0, sin cambio)
         """
-        self.n_steps = steps
+        self.steps = steps
         self.S0 = S0
         self.u = u
         self.d = d
-        self.m = m
+        self.m = 1
+
+    def create_price_matrix(self, fill_value) -> np.ndarray:
+        """Inicializa la matriz de precios con un valor específico.
+
+        Returns:
+            Matriz inicializada con el valor específico
+        """
+        # - ancho: n+1 (desde t=0 hasta t=n)
+        # - alto: (2n)+1 (para acomodar todos los niveles de precio posibles)
+        shape = (self.steps + 1, 2 * self.steps + 1)
+        return np.full(shape, fill_value=fill_value)
 
     def build_price_tree(self) -> np.ndarray:
         """Construye el árbol de precios del subyacente.
@@ -46,39 +55,31 @@ class TreeBuilder:
             Dimensión: (n_steps + 1) x (2 * n_steps + 1)
         """
         # Crear matriz para almacenar precios
-        # Para un árbol trinomial con n pasos:
-        # - Filas: n+1 (desde t=0 hasta t=n)
-        # - Columnas: 2n+1 (para acomodar todos los niveles de precio posibles)
-        price_matrix = np.full((self.n_steps + 1, 2 * self.n_steps + 1), np.nan)
+        price_matrix = self.create_price_matrix(np.nan)
 
         # Nodo central
         # Como la numeración de columnas va de 0 a 2n, el centro es n
-        center = self.n_steps
+        center = self.get_center_index()
 
         # Precio inicial en t=0
         price_matrix[0, center] = self.S0
 
         # Construir árbol hacia adelante
-        for i in range(self.n_steps):  # paso temporal (tiempo)
-            for j in range(center - i, center + i + 1):  # nivel de precio (espacial)
-                # Nota: en la primera iteración, i=0, j=[center]
-                # range no es inclusivo al final, por eso el +1
+        for i in range(self.steps):  # paso temporal
+            for j in range(center - i, center + i + 1):  # columna válida
 
-                if price_matrix[i, j] == 0:
-                    # Saltar nodos que corresponden a precios no alcanzables
-                    # en ese paso de tiempo
-                    continue
+                assert price_matrix[i, j] != np.nan, "Error: nodo no inicializado."
 
                 # Movimiento hacia arriba
-                if j + 1 < price_matrix.shape[1]:
-                    price_matrix[i + 1, j + 1] = price_matrix[i, j] * self.u
+                assert j + 1 < price_matrix.shape[1]
+                price_matrix[i + 1, j + 1] = price_matrix[i, j] * self.u
 
-                # Sin cambio (nodo medio)
+                # Sin Movimiento
                 price_matrix[i + 1, j] = price_matrix[i, j] * self.m
 
                 # Movimiento hacia abajo
-                if j - 1 >= 0:
-                    price_matrix[i + 1, j - 1] = price_matrix[i, j] * self.d
+                assert j - 1 >= 0
+                price_matrix[i + 1, j - 1] = price_matrix[i, j] * self.d
 
         return price_matrix
 
@@ -88,16 +89,4 @@ class TreeBuilder:
         Returns:
             Índice de la columna central
         """
-        return self.n_steps
-
-    def get_valid_nodes_range(self, time_step: int) -> range:
-        """Retorna el rango de índices de columnas válidos en un tiempo dado.
-
-        Args:
-            time_step: Paso temporal (0 <= time_step <= n_steps)
-
-        Returns:
-            Range de índices de columnas válidos
-        """
-        center = self.get_center_index()
-        return range(center - time_step, center + time_step + 1)
+        return self.steps

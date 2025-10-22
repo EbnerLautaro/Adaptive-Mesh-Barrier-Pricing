@@ -5,6 +5,16 @@ from trinomial_model.enums import BarrierType, OptionType
 from trinomial_model.trinomial_model import TrinomialTreeBarrier, OptionParameters
 
 
+def black_scholes_call(S, K, T, r, sigma):
+    """Calcula el precio de una opción call europea usando la fórmula de Black-Scholes.
+
+    Valor teórico según Merton (1973) - Ecuación (8) del paper
+    """
+    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    return S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
+
+
 def main():
     """
     Función principal para demostrar el uso del modelo trinomial para opciones barrera
@@ -45,13 +55,7 @@ def main():
     )
     print(f"\nPrecio de la opción: {option_price:.4f}")
 
-    # Valor teórico según Merton (1973) - Ecuación (8) del paper
     # Para down-and-out call
-
-    def black_scholes_call(S, K, T, r, sigma):
-        d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
-        d2 = d1 - sigma * np.sqrt(T)
-        return S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
 
     if (
         params.barrier_type == BarrierType.DOWN_AND_OUT
