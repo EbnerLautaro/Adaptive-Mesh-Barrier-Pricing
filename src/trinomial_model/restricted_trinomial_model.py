@@ -49,7 +49,7 @@ class RestrictedTrinomialModel:
     def __init__(
         self,
         params: OptionParameters,
-        n_steps: int,
+        m: int,
         *,
         lambda_param: float = 3.0,
     ):
@@ -61,11 +61,13 @@ class RestrictedTrinomialModel:
             n_steps: Número de pasos temporales
         """
         self.params = params
-        self.n_steps = n_steps
-        self.k = params.T / n_steps  # Tamaño del paso temporal, `k` en el paper
+
+        self.h = (np.log(params.H) - np.log(params.S0)) / m  # Paso de precio
+        self.k = (self.h**2) / (lambda_param * params.sigma**2)  # Paso temporal
+        self.n_steps = round(params.T / self.k)
 
         # Parámetro lambda del paper (λ = 3 es recomendado)
-        self.lambda_param = lambda_param
+        # self.lambda_param = lambda_param
 
         # Handlers
         self.barrier_handler = BarrierHandler(
@@ -82,10 +84,7 @@ class RestrictedTrinomialModel:
             k=self.k,
         )
 
-        # Inicializar parámetros del árbol
-
         # Inicialmente, establecer h según lambda (derivacion de la ecuacion)
-        self.h = self.params.sigma * np.sqrt(self.lambda_param * self.k)
 
         # # Ajustar h para alineación con barrera si es necesario
         # self._adjust_for_barrier_alignment()
@@ -96,68 +95,75 @@ class RestrictedTrinomialModel:
         self.m = 1.0  # Factor medio (sin cambio)
 
         # Calcular probabilidades usando ProbabilityHandler
-        self._calculate_probabilities()
-
+        self.p_u, self.p_m, self.p_d = self.probability_handler.calculate_probabilities(
+            self.h
+        )
         # Inicializar constructor del árbol de precios
-        self.tree_builder = TreeBuilder(S0=params.S0, u=self.u, d=self.d, steps=n_steps)
+        self.tree_builder = TreeBuilder(
+            S0=params.S0, u=self.u, d=self.d, steps=self.n_steps
+        )
 
         # Matrices para almacenar precios y valores
         self.S = None
         self.option_values = None
 
-    def _adjust_for_barrier_alignment(self):
-        """
-        Ajusta h para que haya una capa de nodos exactamente en la barrera.
-        Basado en Hull Sección 27.6, ecuación en página 657.
-        """
-        # Calcular el número de pasos necesarios para alcanzar la barrera
-        ln_ratio = np.log(self.params.H / self.params.S0)
+    # def _adjust_for_barrier_alignment(self):
+    #     """
+    #     Ajusta h para que haya una capa de nodos exactamente en la barrera.
+    #     Basado en Hull Sección 27.6, ecuación en página 657.
+    #     """
+    #     # Calcular el número de pasos necesarios para alcanzar la barrera
+    #     ln_ratio = np.log(self.params.H / self.params.S0)
 
-        if abs(ln_ratio) > 1e-10:  # Evitar división por cero
-            # Calcular N según Hull
-            N = int(
-                np.round(ln_ratio / (self.params.sigma * np.sqrt(3 * self.k)) + 0.5)
-            )
+    #     if abs(ln_ratio) > 1e-10:  # Evitar división por cero
+    #         # Calcular N según Hull
+    #         N = int(
+    #             np.round(ln_ratio / (self.params.sigma * np.sqrt(3 * self.k)) + 0.5)
+    #         )
 
-            if N != 0:
-                # Ajustar h para que exactamente N pasos lleguen a la barrera
-                self.h = ln_ratio / N
+    #         if N != 0:
+    #             # Ajustar h para que exactamente N pasos lleguen a la barrera
+    #             self.h = ln_ratio / N
 
-                # Actualizar lambda efectivo
-                self.lambda_param = self.h**2 / (self.params.sigma**2 * self.k)
+    #             # Actualizar lambda efectivo
+    #             self.lambda_param = self.h**2 / (self.params.sigma**2 * self.k)
 
-    def _calculate_probabilities(self):
-        """
-        Calcula las probabilidades neutrales al riesgo según Ecuación (9) del paper
-        usando el ProbabilityHandler.
-        """
-        try:
-            # Intentar calcular probabilidades con h actual
-            self.p_u, self.p_m, self.p_d = (
-                self.probability_handler.calculate_probabilities(self.h)
-            )
-        except ValueError:
-            # Si las probabilidades son inválidas, ajustar lambda
-            self._adjust_lambda_for_valid_probabilities()
+    # def _calculate_probabilities(self):
+    #     """
+    #     Calcula las probabilidades neutrales al riesgo según Ecuación (9) del paper
+    #     usando el ProbabilityHandler.
+    #     """
+    #     # Intentar calcular probabilidades con h actual
+    #     self.p_u, self.p_m, self.p_d = self.probability_handler.calculate_probabilities(
+    #         self.h
+    #     )
+    #     try:
+    #         # Intentar calcular probabilidades con h actual
+    #         self.p_u, self.p_m, self.p_d = (
+    #             self.probability_handler.calculate_probabilities(self.h)
+    #         )
+    #     except ValueError:
+    #         # Si las probabilidades son inválidas, ajustar lambda
+    #         self._adjust_lambda_for_valid_probabilities()
 
-    def _adjust_lambda_for_valid_probabilities(self):
-        """
-        Ajusta lambda para obtener probabilidades válidas usando el método de Ritchken
-        """
-        # Usar el handler para buscar un lambda válido
-        (
-            self.lambda_param,
-            self.h,
-            self.p_u,
-            self.p_m,
-            self.p_d,
-        ) = self.probability_handler.find_valid_lambda(
-            start=1.0, stop=10.0, search_points=20
-        )
+    # def _adjust_lambda_for_valid_probabilities(self):
+    #     """
+    #     Ajusta lambda para obtener probabilidades válidas usando el método de Ritchken
+    #     """
+    #     # Usar el handler para buscar un lambda válido
+    #     (
+    #         self.lambda_param,
+    #         self.h,
+    #         self.p_u,
+    #         self.p_m,
+    #         self.p_d,
+    #     ) = self.probability_handler.find_valid_lambda(
+    #         start=1.0, stop=10.0, search_points=20
+    #     )
 
-        # Actualizar factores de movimiento
-        self.u = np.exp(self.h)
-        self.d = 1.0 / self.u
+    #     # Actualizar factores de movimiento
+    #     self.u = np.exp(self.h)
+    #     self.d = 1.0 / self.u
 
     def _get_discount_factor(self) -> float:
         """
@@ -262,3 +268,6 @@ class RestrictedTrinomialModel:
         # Retornar el valor en el nodo inicial
         center = self.n_steps
         return self.option_values[0, center]
+
+
+1
