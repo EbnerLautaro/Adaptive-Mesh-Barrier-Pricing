@@ -1,6 +1,6 @@
 """Manejo de condiciones de barrera para opciones."""
 
-from .enums import BarrierType
+from ..enums import BarrierType
 
 
 class BarrierHandler:
@@ -33,8 +33,7 @@ class BarrierHandler:
         if self.barrier_type in [BarrierType.UP_AND_OUT, BarrierType.UP_AND_IN]:
             return price >= self.barrier_level
 
-        else:
-            return price <= self.barrier_level
+        return price <= self.barrier_level
 
     def apply_barrier_condition(self, price: float, option_value: float) -> float:
         """Aplica las condiciones de barrera al valor de la opción.
@@ -51,9 +50,9 @@ class BarrierHandler:
             Valor de la opción considerando la barrera
         """
         is_past_barrier = self.is_past_barrier(price)
-        is_knockout = self.barrier_type.is_knockout()
+
         # Knock-out: devolver valor solo si NO cruzó (is_beyond=False)
-        if is_knockout:
+        if self.barrier_type.is_knockout():
             return 0.0 if is_past_barrier else option_value
 
         # Knock-in: devolver valor solo si SÍ cruzó (is_beyond=True)

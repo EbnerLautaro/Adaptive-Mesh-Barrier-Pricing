@@ -14,9 +14,13 @@ Características del modelo:
 
 import numpy as np
 from dataclasses import dataclass
+
+from trinomial_model.handlers.option_handler import OptionHandler
+from trinomial_model.handlers.probability_handler import ProbabilityHandler
 from .enums import OptionType, BarrierType
-from .barrier_handler import BarrierHandler
 from .tree_builder import TreeBuilder
+
+from .handlers.barrier_handler import BarrierHandler
 
 
 @dataclass
@@ -34,10 +38,12 @@ class OptionParameters:
     barrier_type: BarrierType = BarrierType.UP_AND_OUT
 
 
-class TrinomialTreeBarrier:
+class RestrictedTrinomialModel:
     """
     Implementación del árbol trinomial para opciones barrera
-    siguiendo Figlewski & Gao (1999) Sección 4.1
+    siguiendo Figlewski & Gao (1999) Sección 4.1.
+
+    Llamado "Restricted Trinomial Model" en la seccion 4.4 del paper.
     """
 
     def __init__(
@@ -61,28 +67,22 @@ class TrinomialTreeBarrier:
         # Parámetro lambda del paper (λ = 3 es recomendado)
         self.lambda_param = lambda_param
 
-        # Inicializar manejador de barreras
+        # Handlers
         self.barrier_handler = BarrierHandler(
             barrier_level=params.H, barrier_type=params.barrier_type
         )
+        self.option_handler = OptionHandler(
+            K=params.K,
+            option_type=params.option_type,
+        )
+        self.probability_handler = ProbabilityHandler(
+            sigma=params.sigma,
+            r=params.r,
+            q=params.q,
+            k=self.k,
+        )
 
         # Inicializar parámetros del árbol
-        self._initialize_tree_parameters()
-
-        # Inicializar constructor del árbol de precios
-        self.tree_builder = TreeBuilder(S0=params.S0, u=self.u, d=self.d, steps=n_steps)
-
-        # Matrices para almacenar precios y valores
-        self.S = None
-        self.option_values = None
-
-    def _initialize_tree_parameters(self):
-        """
-        Inicializa los parámetros del árbol según el paper
-        """
-        # Calcular nu (drift ajustado)
-        # en el paper es alpha = r - q - 0.5 * sigma^2, pag 319
-        self.alpha = self.params.r - self.params.q - 0.5 * self.params.sigma**2
 
         # Inicialmente, establecer h según lambda (derivacion de la ecuacion)
         self.h = self.params.sigma * np.sqrt(self.lambda_param * self.k)
@@ -95,8 +95,15 @@ class TrinomialTreeBarrier:
         self.d = 1.0 / self.u
         self.m = 1.0  # Factor medio (sin cambio)
 
-        # Calcular probabilidades
+        # Calcular probabilidades usando ProbabilityHandler
         self._calculate_probabilities()
+
+        # Inicializar constructor del árbol de precios
+        self.tree_builder = TreeBuilder(S0=params.S0, u=self.u, d=self.d, steps=n_steps)
+
+        # Matrices para almacenar precios y valores
+        self.S = None
+        self.option_values = None
 
     def _adjust_for_barrier_alignment(self):
         """
@@ -121,113 +128,36 @@ class TrinomialTreeBarrier:
 
     def _calculate_probabilities(self):
         """
-        Calcula las probabilidades neutrales al riesgo según Ecuación (9) del paper.
-
-        p_u = 1/2 * (σ²k/h² + α²k²/h² + αk/h)
-        p_d = 1/2 * (σ²k/h² + α²k²/h² - αk/h)
-        p_m = 1 - p_u - p_d
+        Calcula las probabilidades neutrales al riesgo según Ecuación (9) del paper
+        usando el ProbabilityHandler.
         """
-        # Términos comunes
-        term_1 = (self.params.sigma**2) * (self.k / (self.h**2))
-        term_2 = (self.alpha**2) * ((self.k**2) / (self.h**2))
-        term_3 = self.alpha * (self.k / self.h)
-
-        # Probabilidades según Ecuación (9)
-
-        self.p_u = 0.5 * (term_1 + term_2 + term_3)
-        self.p_d = 0.5 * (term_1 + term_2 - term_3)
-
-        self.p_m = 1.0 - self.p_u - self.p_d
-
-        # Validar probabilidades
-        self._validate_probabilities()
-
-    def _validate_probabilities(self):
-        """
-        Valida que las probabilidades estén en [0, 1] y sumen 1
-        """
-        tolerance = 1e-10
-
-        # Verificar que cada probabilidad esté en [0, 1]
-        if (
-            self.p_u < -tolerance
-            or self.p_u > 1 + tolerance
-            or self.p_m < -tolerance
-            or self.p_m > 1 + tolerance
-            or self.p_d < -tolerance
-            or self.p_d > 1 + tolerance
-        ):
-
+        try:
+            # Intentar calcular probabilidades con h actual
+            self.p_u, self.p_m, self.p_d = (
+                self.probability_handler.calculate_probabilities(self.h)
+            )
+        except ValueError:
             # Si las probabilidades son inválidas, ajustar lambda
-            # y recalcular (método de Ritchken)
             self._adjust_lambda_for_valid_probabilities()
-
-        # Verificar que sumen 1
-        prob_sum = self.p_u + self.p_m + self.p_d
-        if abs(prob_sum - 1.0) > tolerance:
-            # Normalizar
-            self.p_u /= prob_sum
-            self.p_m /= prob_sum
-            self.p_d /= prob_sum
 
     def _adjust_lambda_for_valid_probabilities(self):
         """
-        Ajusta lambda para obtener probabilidades válidas
+        Ajusta lambda para obtener probabilidades válidas usando el método de Ritchken
         """
-        # Buscar un lambda válido
-        lambda_min = 1.0
-        lambda_max = 10.0
+        # Usar el handler para buscar un lambda válido
+        (
+            self.lambda_param,
+            self.h,
+            self.p_u,
+            self.p_m,
+            self.p_d,
+        ) = self.probability_handler.find_valid_lambda(
+            start=1.0, stop=10.0, search_points=20
+        )
 
-        for lambda_try in np.linspace(lambda_min, lambda_max, 20):
-            self.h = self.params.sigma * np.sqrt(lambda_try * self.k)
-
-            # Recalcular probabilidades
-            sigma2_term = self.params.sigma**2 * self.k / self.h**2
-            nu2_term = self.alpha**2 * self.k**2 / self.h**2
-            nu_term = self.alpha * self.k / self.h
-
-            p_u_try = 0.5 * (sigma2_term + nu2_term + nu_term)
-            p_d_try = 0.5 * (sigma2_term + nu2_term - nu_term)
-            p_m_try = 1.0 - p_u_try - p_d_try
-
-            # Verificar si son válidas
-            if 0 <= p_u_try <= 1 and 0 <= p_m_try <= 1 and 0 <= p_d_try <= 1:
-                self.lambda_param = lambda_try
-                self.p_u = p_u_try
-                self.p_m = p_m_try
-                self.p_d = p_d_try
-                self.u = np.exp(self.h)
-                self.d = 1.0 / self.u
-                break
-
-    def build_price_tree(self) -> np.ndarray:
-        """
-        Construye el árbol de precios del subyacente.
-
-        Para opciones barrera, NO se ajusta por la media para mantener
-        las capas de nodos en los mismos precios en cada paso temporal.
-
-        Returns:
-            Matriz con los precios del subyacente en cada nodo
-        """
-        # Delegar la construcción del árbol al TreeBuilder
-        self.S = self.tree_builder.build_price_tree()
-        return self.S
-
-    def _payoff(self, S: float) -> float:
-        """
-        Calcula el payoff de la opción en vencimiento
-
-        Args:
-            S: Precio del subyacente
-
-        Returns:
-            Payoff de la opción
-        """
-        if self.params.option_type == OptionType.CALL:
-            return max(S - self.params.K, 0)
-        else:
-            return max(self.params.K - S, 0)
+        # Actualizar factores de movimiento
+        self.u = np.exp(self.h)
+        self.d = 1.0 / self.u
 
     def _get_discount_factor(self) -> float:
         """
@@ -249,7 +179,7 @@ class TrinomialTreeBarrier:
                 continue
 
             # Calcular payoff
-            payoff = self._payoff(self.S[self.n_steps, j])
+            payoff = self.option_handler.payoff(self.S[self.n_steps, j])
 
             # Aplicar condición de barrera
             self.option_values[self.n_steps, j] = (
@@ -314,7 +244,7 @@ class TrinomialTreeBarrier:
             Precio de la opción barrera
         """
         # Construir árbol de precios
-        self.build_price_tree()
+        self.S = self.tree_builder.build_price_tree()
         assert self.S is not None
 
         # Crear matriz para valores de la opción

@@ -2,7 +2,10 @@ import numpy as np
 from scipy.stats import norm
 
 from trinomial_model.enums import BarrierType, OptionType
-from trinomial_model.trinomial_model import TrinomialTreeBarrier, OptionParameters
+from trinomial_model.restricted_trinomial_model import (
+    RestrictedTrinomialModel,
+    OptionParameters,
+)
 
 
 def black_scholes_call(S, K, T, r, sigma):
@@ -33,7 +36,7 @@ def main():
     )
 
     # Crear árbol trinomial
-    tree = TrinomialTreeBarrier(params, n_steps=100)
+    tree = RestrictedTrinomialModel(params, n_steps=100)
 
     # Calcular precio de la opción
     option_price = tree.price_option()
@@ -78,7 +81,7 @@ def main():
     print("\nAnálisis de Convergencia:")
     steps_list = [25, 50, 100, 200, 500]
     for steps in steps_list:
-        tree_conv = TrinomialTreeBarrier(params=params, n_steps=steps)
+        tree_conv = RestrictedTrinomialModel(params=params, n_steps=steps)
         price_conv = tree_conv.price_option()
         print(f"- {steps} pasos: {price_conv:.4f}")
 

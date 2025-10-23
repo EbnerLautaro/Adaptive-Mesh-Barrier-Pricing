@@ -1,5 +1,7 @@
 import numpy as np
 
+from trinomial_model import FILL_VALUE
+
 
 class TreeBuilder:
     """Construye el árbol trinomial de precios del subyacente.
@@ -33,7 +35,7 @@ class TreeBuilder:
         self.d = d
         self.m = 1
 
-    def create_price_matrix(self, fill_value) -> np.ndarray:
+    def create_price_matrix(self, fill_value=FILL_VALUE) -> np.ndarray:
         """Inicializa la matriz de precios con un valor específico.
 
         Returns:
@@ -55,7 +57,7 @@ class TreeBuilder:
             Dimensión: (n_steps + 1) x (2 * n_steps + 1)
         """
         # Crear matriz para almacenar precios
-        price_matrix = self.create_price_matrix(np.nan)
+        price_matrix = self.create_price_matrix()
 
         # Nodo central
         # Como la numeración de columnas va de 0 a 2n, el centro es n
@@ -68,7 +70,7 @@ class TreeBuilder:
         for i in range(self.steps):  # paso temporal
             for j in range(center - i, center + i + 1):  # columna válida
 
-                assert price_matrix[i, j] != np.nan, "Error: nodo no inicializado."
+                assert price_matrix[i, j] != FILL_VALUE, "Error: nodo no inicializado."
 
                 # Movimiento hacia arriba
                 assert j + 1 < price_matrix.shape[1]
