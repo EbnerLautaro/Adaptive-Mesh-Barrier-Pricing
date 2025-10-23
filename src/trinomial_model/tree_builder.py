@@ -39,8 +39,8 @@ class TreeBuilder:
         Returns:
             Matriz inicializada con el valor específico
         """
-        # - ancho: n+1 (desde t=0 hasta t=n)
-        # - alto: (2n)+1 (para acomodar todos los niveles de precio posibles)
+        # - filas: n+1 (desde t=0 hasta t=n)
+        # - columnas: (2n)+1 (para acomodar todos los niveles de precio posibles)
         shape = (self.steps + 1, 2 * self.steps + 1)
         return np.full(shape, fill_value=fill_value)
 

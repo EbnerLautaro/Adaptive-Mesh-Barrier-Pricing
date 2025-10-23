@@ -36,22 +36,6 @@ class BarrierHandler:
         else:
             return price <= self.barrier_level
 
-    def is_knockout_type(self) -> bool:
-        """Verifica si la barrera es de tipo knock-out.
-
-        Returns:
-            True si es knock-out, False si es knock-in
-        """
-        return self.barrier_type.is_knockout()
-
-    def is_knockin_type(self) -> bool:
-        """Verifica si la barrera es de tipo knock-in.
-
-        Returns:
-            True si es knock-in, False si es knock-out
-        """
-        return self.barrier_type.is_knockin()
-
     def apply_barrier_condition(self, price: float, option_value: float) -> float:
         """Aplica las condiciones de barrera al valor de la opción.
 
@@ -67,18 +51,10 @@ class BarrierHandler:
             Valor de la opción considerando la barrera
         """
         is_past_barrier = self.is_past_barrier(price)
-        is_knockout = self.is_knockout_type()
-        is_knockin = self.is_knockin_type()
-
-        # Tabla de decisión consolidada
+        is_knockout = self.barrier_type.is_knockout()
         # Knock-out: devolver valor solo si NO cruzó (is_beyond=False)
-        # Knock-in: devolver valor solo si SÍ cruzó (is_beyond=True)
-
         if is_knockout:
             return 0.0 if is_past_barrier else option_value
 
-        elif is_knockin:
-            return option_value if is_past_barrier else 0.0
-
-        else:
-            raise ValueError("Tipo de barrera desconocido.")
+        # Knock-in: devolver valor solo si SÍ cruzó (is_beyond=True)
+        return option_value if is_past_barrier else 0.0

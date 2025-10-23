@@ -56,7 +56,7 @@ class TrinomialTreeBarrier:
         """
         self.params = params
         self.n_steps = n_steps
-        self.dt = params.T / n_steps  # Tamaño del paso temporal, `k` en el paper
+        self.k = params.T / n_steps  # Tamaño del paso temporal, `k` en el paper
 
         # Parámetro lambda del paper (λ = 3 es recomendado)
         self.lambda_param = lambda_param
@@ -70,9 +70,7 @@ class TrinomialTreeBarrier:
         self._initialize_tree_parameters()
 
         # Inicializar constructor del árbol de precios
-        self.tree_builder = TreeBuilder(
-            S0=params.S0, u=self.u, d=self.d, steps=n_steps
-        )
+        self.tree_builder = TreeBuilder(S0=params.S0, u=self.u, d=self.d, steps=n_steps)
 
         # Matrices para almacenar precios y valores
         self.S = None
@@ -87,7 +85,7 @@ class TrinomialTreeBarrier:
         self.alpha = self.params.r - self.params.q - 0.5 * self.params.sigma**2
 
         # Inicialmente, establecer h según lambda (derivacion de la ecuacion)
-        self.h = self.params.sigma * np.sqrt(self.lambda_param * self.dt)
+        self.h = self.params.sigma * np.sqrt(self.lambda_param * self.k)
 
         # # Ajustar h para alineación con barrera si es necesario
         # self._adjust_for_barrier_alignment()
@@ -111,7 +109,7 @@ class TrinomialTreeBarrier:
         if abs(ln_ratio) > 1e-10:  # Evitar división por cero
             # Calcular N según Hull
             N = int(
-                np.round(ln_ratio / (self.params.sigma * np.sqrt(3 * self.dt)) + 0.5)
+                np.round(ln_ratio / (self.params.sigma * np.sqrt(3 * self.k)) + 0.5)
             )
 
             if N != 0:
@@ -119,7 +117,7 @@ class TrinomialTreeBarrier:
                 self.h = ln_ratio / N
 
                 # Actualizar lambda efectivo
-                self.lambda_param = self.h**2 / (self.params.sigma**2 * self.dt)
+                self.lambda_param = self.h**2 / (self.params.sigma**2 * self.k)
 
     def _calculate_probabilities(self):
         """
@@ -130,9 +128,9 @@ class TrinomialTreeBarrier:
         p_m = 1 - p_u - p_d
         """
         # Términos comunes
-        term_1 = (self.params.sigma**2) * (self.dt / (self.h**2))
-        term_2 = (self.alpha**2) * ((self.dt**2) / (self.h**2))
-        term_3 = self.alpha * (self.dt / self.h)
+        term_1 = (self.params.sigma**2) * (self.k / (self.h**2))
+        term_2 = (self.alpha**2) * ((self.k**2) / (self.h**2))
+        term_3 = self.alpha * (self.k / self.h)
 
         # Probabilidades según Ecuación (9)
 
@@ -181,12 +179,12 @@ class TrinomialTreeBarrier:
         lambda_max = 10.0
 
         for lambda_try in np.linspace(lambda_min, lambda_max, 20):
-            self.h = self.params.sigma * np.sqrt(lambda_try * self.dt)
+            self.h = self.params.sigma * np.sqrt(lambda_try * self.k)
 
             # Recalcular probabilidades
-            sigma2_term = self.params.sigma**2 * self.dt / self.h**2
-            nu2_term = self.alpha**2 * self.dt**2 / self.h**2
-            nu_term = self.alpha * self.dt / self.h
+            sigma2_term = self.params.sigma**2 * self.k / self.h**2
+            nu2_term = self.alpha**2 * self.k**2 / self.h**2
+            nu_term = self.alpha * self.k / self.h
 
             p_u_try = 0.5 * (sigma2_term + nu2_term + nu_term)
             p_d_try = 0.5 * (sigma2_term + nu2_term - nu_term)
@@ -238,7 +236,7 @@ class TrinomialTreeBarrier:
         Returns:
             Factor de descuento e^(-r*dt)
         """
-        return np.exp(-self.params.r * self.dt)
+        return np.exp(-self.params.r * self.k)
 
     def _initialize_terminal_payoffs(self) -> None:
         """
