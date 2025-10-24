@@ -71,7 +71,7 @@ def main():
     # steps_list = [25, 50, 100, 200, 500]
     import time
 
-    for s0 in [100, 98]:
+    for s0 in [92, 91, 90.5, 90.25, 90.125]:
         start = time.perf_counter()
 
         params = OptionParameters(
