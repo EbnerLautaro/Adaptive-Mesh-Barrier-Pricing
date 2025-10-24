@@ -67,21 +67,10 @@ class TreeBuilder:
         price_matrix[0, center] = self.S0
 
         # Construir árbol hacia adelante
-        for i in range(self.steps):  # paso temporal
-            for j in range(center - i, center + i + 1):  # columna válida
-
-                assert price_matrix[i, j] != FILL_VALUE, "Error: nodo no inicializado."
-
-                # Movimiento hacia arriba
-                assert j + 1 < price_matrix.shape[1]
-                price_matrix[i + 1, j + 1] = price_matrix[i, j] * self.u
-
-                # Sin Movimiento
-                price_matrix[i + 1, j] = price_matrix[i, j] * self.m
-
-                # Movimiento hacia abajo
-                assert j - 1 >= 0
-                price_matrix[i + 1, j - 1] = price_matrix[i, j] * self.d
+        for i in range(1, self.steps + 1): # paso temporal (desde t=1 hasta t=N)
+            # relación logarítmica directa: cada fila i tiene los valores de multiplicar S0 por potencias
+            exponents = np.arange(-i, i + 1, 1)
+            price_matrix[i, center + exponents] = self.S0 * (self.u ** np.maximum(exponents, 0)) * (self.d ** np.maximum(-exponents, 0))
 
         return price_matrix
 

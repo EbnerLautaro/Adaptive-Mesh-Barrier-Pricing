@@ -1,6 +1,7 @@
 """Manejo de condiciones de barrera para opciones."""
 
 from ..enums import BarrierType
+import numpy as np
 
 
 class BarrierHandler:
@@ -21,21 +22,21 @@ class BarrierHandler:
         self.barrier_level = barrier_level
         self.barrier_type = barrier_type
 
-    def is_past_barrier(self, price: float) -> bool:
+    def is_past_barrier(self, price: np.ndarray):
         """Verifica si el precio ha cruzado la barrera.
 
         Args:
-            price: Precio del subyacente a verificar
+            price: Vector de precios del subyacente a verificar
 
         Returns:
-            True si el precio ha cruzado la barrera, False en caso contrario
+            Vector donde se corresponde True si el precio ha cruzado la barrera, False en caso contrario
         """
         if self.barrier_type in [BarrierType.UP_AND_OUT, BarrierType.UP_AND_IN]:
             return price >= self.barrier_level
 
         return price <= self.barrier_level
 
-    def apply_barrier_condition(self, price: float, option_value: float) -> float:
+    def apply_barrier_condition(self, price: np.ndarray, option_value: np.ndarray):
         """Aplica las condiciones de barrera al valor de la opción.
 
         Lógica consolidada:
@@ -43,17 +44,17 @@ class BarrierHandler:
         - Knock-in: valor es 0 si NO cruza la barrera, mantiene valor si cruza
 
         Args:
-            price: Precio del subyacente
-            option_value: Valor de la opción sin considerar barrera
+            price: Vector de precios del subyacente
+            option_value: Vector de valores de la opción sin considerar barrera
 
         Returns:
-            Valor de la opción considerando la barrera
+            Vector de valores de la opción considerando la barrera
         """
         is_past_barrier = self.is_past_barrier(price)
 
         # Knock-out: devolver valor solo si NO cruzó (is_beyond=False)
         if self.barrier_type.is_knockout():
-            return 0.0 if is_past_barrier else option_value
-
+            return np.where(is_past_barrier, 0.0, option_value)
+        
         # Knock-in: devolver valor solo si SÍ cruzó (is_beyond=True)
-        return option_value if is_past_barrier else 0.0
+        return np.where(is_past_barrier, option_value, 0.0)
