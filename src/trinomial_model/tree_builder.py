@@ -14,28 +14,15 @@ class TreeBuilder:
         steps: Número de pasos temporales
     """
 
-    def __init__(
-        self,
-        S0: float,
-        u: float,
-        d: float,
-        steps: int,
-    ):
+    def __init__(self, round_to: int = 12) -> None:
         """Inicializa el constructor del árbol.
 
         Args:
-            n_steps: Número de pasos temporales
-            S0: Precio inicial del subyacente
-            u: Factor de movimiento hacia arriba
-            d: Factor de movimiento hacia abajo
+            round_to: Número de decimales para redondear los precios en cada nodo
         """
-        self.steps = steps
-        self.S0 = S0
-        self.u = u
-        self.d = d
-        self.m = 1
+        self.round_to = round_to
 
-    def create_price_matrix(self, fill_value=FILL_VALUE) -> np.ndarray:
+    def _create_price_matrix(self, steps: int, fill_value) -> np.ndarray:
         """Inicializa la matriz de precios con un valor específico.
 
         Returns:
@@ -43,10 +30,18 @@ class TreeBuilder:
         """
         # - filas: n+1 (desde t=0 hasta t=n)
         # - columnas: (2n)+1 (para acomodar todos los niveles de precio posibles)
-        shape = (self.steps + 1, 2 * self.steps + 1)
+        shape = (steps + 1, 2 * steps + 1)
         return np.full(shape, fill_value=fill_value)
 
-    def build_price_tree(self) -> np.ndarray:
+    def build_price_tree(
+        self,
+        starting_value: float,
+        steps: int,
+        u: float,
+        d: float,
+        *,
+        fill_value=FILL_VALUE,
+    ) -> np.ndarray:
         """Construye el árbol de precios del subyacente.
 
         Para opciones barrera, NO se ajusta por la media para mantener
@@ -57,38 +52,34 @@ class TreeBuilder:
             Dimensión: (n_steps + 1) x (2 * n_steps + 1)
         """
         # Crear matriz para almacenar precios
-        price_matrix = self.create_price_matrix()
+        price_matrix = self._create_price_matrix(steps, fill_value)
 
         # Nodo central
         # Como la numeración de columnas va de 0 a 2n, el centro es n
-        center = self.get_center_index()
+        center = steps
 
         # Precio inicial en t=0
-        price_matrix[0, center] = self.S0
+        price_matrix[0, center] = starting_value
 
         # Construir árbol hacia adelante
-        for i in range(self.steps):  # paso temporal
+        for i in range(steps):  # paso temporal
             for j in range(center - i, center + i + 1):  # columna válida
 
                 assert price_matrix[i, j] != FILL_VALUE, "Error: nodo no inicializado."
 
                 # Movimiento hacia arriba
                 assert j + 1 < price_matrix.shape[1]
-                price_matrix[i + 1, j + 1] = price_matrix[i, j] * self.u
+                price_matrix[i + 1, j + 1] = round(
+                    price_matrix[i, j] * u, self.round_to
+                )
 
                 # Sin Movimiento
-                price_matrix[i + 1, j] = price_matrix[i, j] * self.m
+                price_matrix[i + 1, j] = round(price_matrix[i, j], self.round_to)
 
                 # Movimiento hacia abajo
                 assert j - 1 >= 0
-                price_matrix[i + 1, j - 1] = price_matrix[i, j] * self.d
+                price_matrix[i + 1, j - 1] = round(
+                    price_matrix[i, j] * d, self.round_to
+                )
 
         return price_matrix
-
-    def get_center_index(self) -> int:
-        """Retorna el índice de la columna central del árbol.
-
-        Returns:
-            Índice de la columna central
-        """
-        return self.steps

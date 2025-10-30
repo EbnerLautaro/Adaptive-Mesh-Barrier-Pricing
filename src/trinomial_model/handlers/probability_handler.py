@@ -15,7 +15,7 @@ class ProbabilityHandler:
 
     TOLERANCE = 1e-10
 
-    def __init__(self, sigma: float, r: float, q: float, k: float):
+    def __init__(self, sigma: float, r: float, q: float):
         """Inicializa el calculador de probabilidades.
 
         Args:
@@ -27,20 +27,20 @@ class ProbabilityHandler:
         self.sigma = sigma
         self.r = r
         self.q = q
-        self.k = k
 
         # Calcular drift ajustado (alpha en el paper)
         self.alpha = r - q - 0.5 * (sigma**2)
 
     def calculate_probabilities(
         self,
-        h: float,
-        k_factor: float = 1.0,
+        h,
+        k,
         h_factor: float = 1.0,
+        k_factor: float = 1.0,
     ) -> Tuple[float, float, float]:
         """Calcula las probabilidades p_u, p_m, p_d según Ecuación (9)."""
 
-        _k = k_factor * self.k
+        _k = k_factor * k
         _h = h_factor * h
 
         # Términos comunes
@@ -76,25 +76,25 @@ class ProbabilityHandler:
                 f"Probabilidades inválidas: p_u={p_u}, p_m={p_m}, p_d={p_d}"
             )
 
-    def find_valid_lambda(
-        self,
-        start: float = 3.0,
-        stop: float = 10.0,
-        search_points: int = 20,
-    ) -> Tuple[float, float, float, float, float]:
-        """Busca un valor de lambda que genere probabilidades válidas.
-        Método de Ritchken para ajustar lambda cuando las probabilidades
-        iniciales no son válidas.
-        """
+    # def find_valid_lambda(
+    #     self,
+    #     start: float = 3.0,
+    #     stop: float = 10.0,
+    #     search_points: int = 20,
+    # ) -> Tuple[float, float, float, float, float]:
+    #     """Busca un valor de lambda que genere probabilidades válidas.
+    #     Método de Ritchken para ajustar lambda cuando las probabilidades
+    #     iniciales no son válidas.
+    #     """
 
-        for lambda_try in np.linspace(start=start, stop=stop, num=search_points):
+    #     for lambda_try in np.linspace(start=start, stop=stop, num=search_points):
 
-            h_try = self.sigma * np.sqrt(lambda_try * self.k)
-            p_u, p_m, p_d = self.calculate_probabilities(h_try)
+    #         h_try = self.sigma * np.sqrt(lambda_try * self.k)
+    #         p_u, p_m, p_d = self.calculate_probabilities(h_try)
 
-            self._validate_probabilities(p_u, p_m, p_d)
+    #         self._validate_probabilities(p_u, p_m, p_d)
 
-            return lambda_try, h_try, p_u, p_m, p_d
+    #         return lambda_try, h_try, p_u, p_m, p_d
 
-        # Si no encontramos un lambda válido, lanzar error
-        raise ValueError("No se pudo encontrar un lambda válido en el rango ")
+    #     # Si no encontramos un lambda válido, lanzar error
+    #     raise ValueError("No se pudo encontrar un lambda válido en el rango ")

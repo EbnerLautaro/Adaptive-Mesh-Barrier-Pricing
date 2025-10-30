@@ -21,11 +21,15 @@ class BarrierHandler:
         self.barrier_level = barrier_level
         self.barrier_type = barrier_type
 
-    def is_past_barrier(self, price: float) -> bool:
+    def is_past_barrier(
+        self,
+        price: float,
+    ) -> bool:
         """Verifica si el precio ha cruzado la barrera.
 
         Args:
             price: Precio del subyacente a verificar
+            tol: Tolerancia para la comparación con la barrera (default: 1e-10)
 
         Returns:
             True si el precio ha cruzado la barrera, False en caso contrario
@@ -45,10 +49,12 @@ class BarrierHandler:
         Args:
             price: Precio del subyacente
             option_value: Valor de la opción sin considerar barrera
+            tol: Tolerancia para la comparación con la barrera (default: 1e-10)
 
         Returns:
             Valor de la opción considerando la barrera
         """
+
         is_past_barrier = self.is_past_barrier(price)
 
         # Knock-out: devolver valor solo si NO cruzó (is_beyond=False)
