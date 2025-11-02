@@ -21,19 +21,10 @@ def main():
     )
 
     # Comparar diferentes niveles de refinamiento
-    amm = AdaptiveMeshModel(params, 0)
-
+    amm = AdaptiveMeshModel(params, M=1)
     result = amm.price_option()
 
-    print("Precio de la opción (AMM): ")
-    print(f"{float(result) = }")
-    print("Segun el paper: 2.507")
-
-    for i in range(20):
-        price = float(amm.coarse_mesh["prices"][i, amm.N - 1])
-        option_price = float(amm.coarse_mesh["option_values"][i, amm.N - 1])
-        print(f"Precio nodo {i}: ")
-        print(f"\t{price = } {option_price = }")
+    print(result)
 
 
 if __name__ == "__main__":

@@ -40,8 +40,8 @@ class ProbabilityHandler:
     ) -> Tuple[float, float, float]:
         """Calcula las probabilidades p_u, p_m, p_d según Ecuación (9)."""
 
-        _k = k_factor * k
-        _h = h_factor * h
+        _h = h * h_factor
+        _k = k * k_factor
 
         # Términos comunes
         term_1 = (self.sigma**2) * (_k / (_h**2))
