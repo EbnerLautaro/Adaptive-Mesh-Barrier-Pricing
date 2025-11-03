@@ -60,9 +60,6 @@ class AdaptiveMeshModel:
             N = 1
 
         k = T / N
-        # print(f"Adaptive steps: {h = }, {k = }, {N = }")
-        # k2 = T / int(np.ceil((T * lambd_param * (sigma**2)) / h**2))
-        # print(f"Single equation: {k2 = }")
         return (h, k, N)
 
     def __init__(self, params: OptionParameters, M: int):
@@ -224,8 +221,6 @@ class AdaptiveMeshModel:
             upper_mesh = self.fine_meshes[m - 1]["option_values"]
             middle_of_mesh = 1
         # temporal length in fine mesh
-        print(f"{upper_mesh.shape = }")
-        print(f"{len(upper_mesh[0]) = }")
         upper_mesh_length = upper_mesh.shape[0]
 
         option_values = np.full((3, upper_mesh_length * 4), fill_value=FILL_VALUE)
@@ -237,9 +232,7 @@ class AdaptiveMeshModel:
         )
 
         option_values[1, -1] = mesh_14
-        print(f"{mesh_14 = }")
         for t in range(upper_mesh_length - 1, -1, -1):
-
             upper_mesh_2t = upper_mesh[t, middle_of_mesh + 1]
             upper_mesh_1t = upper_mesh[t, middle_of_mesh]
             upper_mesh_0t = upper_mesh[t, middle_of_mesh - 1]
@@ -253,7 +246,6 @@ class AdaptiveMeshModel:
                 k=fine_mesh["time_step"],
             )
             mesh_24 = upper_mesh_1t
-
             option_values[2, t * 4 : (t * 4) + 4] = (
                 mesh_21,
                 mesh_22,
@@ -262,7 +254,7 @@ class AdaptiveMeshModel:
             )
             option_values[0, t * 4 : (t * 4) + 4] = (0, 0, 0, 0)
 
-        print(option_values.shape)
+        print(option_values[2, :8])
         return option_values
 
     def _get_fine_mesh_upper_nodes(
@@ -350,6 +342,6 @@ class AdaptiveMeshModel:
         if self.M == 0:
             option_value = self.coarse_mesh["option_values"][0, self.N]
         else:
-            option_value = self.fine_meshes[self.M]["option_values"][1, 0]
+            option_value = self.fine_meshes[self.M]["option_values"][1, 3]
 
         return option_value

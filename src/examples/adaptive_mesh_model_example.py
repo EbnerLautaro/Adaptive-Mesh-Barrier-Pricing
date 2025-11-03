@@ -9,7 +9,7 @@ def main():
     """
     # Parámetros del ejemplo en el paper (página 331)
     params = OptionParameters(
-        S0=92,  # Cerca de la barrera
+        S0=91,  # Cerca de la barrera
         K=100.0,  # Strike
         H=90.0,  # Barrera
         T=1.0,  # 1 año
@@ -24,8 +24,10 @@ def main():
     amm = AdaptiveMeshModel(params, M=1)
     result = amm.price_option()
 
-    print(result)
-    # print(amm.fine_meshes[1]["option_values"])
+    print("-" * 40)
+    print(f"{result = }")
+    print(amm.coarse_mesh["option_values"][0, amm.N])
+    print("-" * 40)
 
 
 if __name__ == "__main__":
