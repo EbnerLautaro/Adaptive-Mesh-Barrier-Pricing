@@ -220,19 +220,18 @@ class AdaptiveMeshModel:
         else:
             upper_mesh = self.fine_meshes[m - 1]["option_values"]
             middle_of_mesh = 1
-
         upper_mesh_length = upper_mesh.shape[0] - 1
 
-        option_values = np.full((3, upper_mesh_length * 4), fill_value=FILL_VALUE)
+        option_values = np.full((upper_mesh_length * 4, 3), fill_value=FILL_VALUE)
 
         mesh_14_price = self.params.H * np.exp(self.u) / (2**m)
         mesh_14_payoff = self.option_handler.payoff(mesh_14_price)
         mesh_14 = self.barrier_handler.apply_barrier_condition(
             mesh_14_price, mesh_14_payoff
         )
-        option_values[1, -1] = mesh_14
+        option_values[-1, 1] = mesh_14
 
-        option_values[0, :] = [0] * upper_mesh_length * 4
+        option_values[:, 0] = [0] * upper_mesh_length * 4
 
         for t in range(upper_mesh_length + 1):
             if t == upper_mesh_length:
@@ -252,7 +251,7 @@ class AdaptiveMeshModel:
             )
             mesh_24 = upper_mesh_1t
 
-            option_values[2, t * 4 : (t * 4) + 4] = (
+            option_values[t * 4 : (t * 4) + 4, 2] = (
                 mesh_21,
                 mesh_22,
                 mesh_23,
@@ -285,18 +284,18 @@ class AdaptiveMeshModel:
         """Realiza la inducción hacia atrás en la m-ésima malla fina"""
 
         discount_factor = self._get_discount_factor_fine_mesh(m)
-        length = option_values.shape[1]
+        length = option_values.shape[0]
 
         pu, pm, pd = self.probability_handler.calculate_probabilities(
             h=self.fine_meshes[m]["price_step"],
             k=self.fine_meshes[m]["time_step"],
         )
         for t in range(length - 1, 0, -1):
-            up_node = option_values[2, t]
-            mid_node = option_values[1, t]
-            down_node = option_values[0, t]
+            up_node = option_values[t, 2]
+            mid_node = option_values[t, 1]
+            down_node = option_values[t, 0]
             expected_value = pu * up_node + pm * mid_node + pd * down_node
-            option_values[1, t - 1] = discount_factor * expected_value
+            option_values[t - 1, 1] = discount_factor * expected_value
         return option_values
 
     def _price_option_on_fine_mesh(self, m: int):
@@ -311,8 +310,6 @@ class AdaptiveMeshModel:
         assert m in self.fine_meshes, f"Malla fina {m} no inicializada"
 
         option_values = self._build_fine_mesh_option_values_outter(m)
-
-        print(option_values[:, 96 * 4 : 98 * 4])
 
         self.fine_meshes[m]["option_values"] = self._backward_induction_fine_mesh(
             m, option_values
@@ -342,6 +339,6 @@ class AdaptiveMeshModel:
         if self.M == 0:
             option_value = self.coarse_mesh["option_values"][0, self.N]
         else:
-            option_value = self.fine_meshes[self.M]["option_values"][1, 0]
+            option_value = self.fine_meshes[self.M]["option_values"][0, 1]
 
         return option_value

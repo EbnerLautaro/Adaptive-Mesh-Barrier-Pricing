@@ -9,7 +9,7 @@ def main():
     """
     # Parámetros del ejemplo en el paper (página 331)
     params = OptionParameters(
-        S0=92,  # Cerca de la barrera
+        S0=90.125,  # Cerca de la barrera
         K=100.0,  # Strike
         H=90.0,  # Barrera
         T=1.0,  # 1 año
@@ -21,12 +21,20 @@ def main():
     )
 
     # Comparar diferentes niveles de refinamiento
-    amm = AdaptiveMeshModel(params, M=1)
+    amm = AdaptiveMeshModel(params, M=4)
     result = amm.price_option()
 
     print("-" * 40)
     print(f"{result = }")
-    print(amm.coarse_mesh["option_values"].shape)
+
+    coarse_shape = amm.coarse_mesh["option_values"].shape
+
+    print(f"Coarse mesh shape: {coarse_shape}")
+
+    for i in range(amm.M):
+        fine_shape = amm.fine_meshes[i + 1]["option_values"].shape
+        print(f"Fine mesh M={i + 1} shape: {fine_shape}")
+
     print("-" * 40)
 
 
