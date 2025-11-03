@@ -217,11 +217,14 @@ class AdaptiveMeshModel:
         if m == 1:
             upper_mesh = self.coarse_mesh["option_values"]
             middle_of_mesh = self.N
+            upper_mesh_length = upper_mesh.shape[0]
+            print(f"{m = } ... {upper_mesh.shape = }")
         else:
             upper_mesh = self.fine_meshes[m - 1]["option_values"]
             middle_of_mesh = 1
-        # temporal length in fine mesh
-        upper_mesh_length = upper_mesh.shape[0]
+            upper_mesh_length = upper_mesh.shape[1]
+            print(f"{m = } ... {upper_mesh.shape = }")
+        print(f"{m = } ... {upper_mesh_length = }")
 
         option_values = np.full((3, upper_mesh_length * 4), fill_value=FILL_VALUE)
 
@@ -231,8 +234,10 @@ class AdaptiveMeshModel:
             mesh_14_price, mesh_14_payoff
         )
 
+        option_values[0, :] = [0] * upper_mesh_length * 4
+
         option_values[1, -1] = mesh_14
-        for t in range(upper_mesh_length - 1, -1, -1):
+        for t in range(upper_mesh_length):
             upper_mesh_2t = upper_mesh[t, middle_of_mesh + 1]
             upper_mesh_1t = upper_mesh[t, middle_of_mesh]
             upper_mesh_0t = upper_mesh[t, middle_of_mesh - 1]
@@ -246,15 +251,14 @@ class AdaptiveMeshModel:
                 k=fine_mesh["time_step"],
             )
             mesh_24 = upper_mesh_1t
-            option_values[2, t * 4 : (t * 4) + 4] = (
+
+            option_values[2, t : t + 4] = (
                 mesh_21,
                 mesh_22,
                 mesh_23,
                 mesh_24,
             )
-            option_values[0, t * 4 : (t * 4) + 4] = (0, 0, 0, 0)
 
-        print(option_values[2, :8])
         return option_values
 
     def _get_fine_mesh_upper_nodes(
@@ -342,6 +346,6 @@ class AdaptiveMeshModel:
         if self.M == 0:
             option_value = self.coarse_mesh["option_values"][0, self.N]
         else:
-            option_value = self.fine_meshes[self.M]["option_values"][1, 3]
+            option_value = self.fine_meshes[self.M]["option_values"][1, 0]
 
         return option_value

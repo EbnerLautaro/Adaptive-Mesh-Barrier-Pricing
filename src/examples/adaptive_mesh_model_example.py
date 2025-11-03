@@ -21,7 +21,7 @@ def main():
     )
 
     # Comparar diferentes niveles de refinamiento
-    amm = AdaptiveMeshModel(params, M=1)
+    amm = AdaptiveMeshModel(params, M=2)
     result = amm.price_option()
 
     print("-" * 40)
