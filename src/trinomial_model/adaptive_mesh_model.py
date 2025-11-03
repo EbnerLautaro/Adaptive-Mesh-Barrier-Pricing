@@ -217,14 +217,11 @@ class AdaptiveMeshModel:
         if m == 1:
             upper_mesh = self.coarse_mesh["option_values"]
             middle_of_mesh = self.N
-            upper_mesh_length = upper_mesh.shape[0]
-            print(f"{m = } ... {upper_mesh.shape = }")
         else:
             upper_mesh = self.fine_meshes[m - 1]["option_values"]
             middle_of_mesh = 1
-            upper_mesh_length = upper_mesh.shape[1]
-            print(f"{m = } ... {upper_mesh.shape = }")
-        print(f"{m = } ... {upper_mesh_length = }")
+
+        upper_mesh_length = upper_mesh.shape[0] - 1
 
         option_values = np.full((3, upper_mesh_length * 4), fill_value=FILL_VALUE)
 
@@ -233,14 +230,17 @@ class AdaptiveMeshModel:
         mesh_14 = self.barrier_handler.apply_barrier_condition(
             mesh_14_price, mesh_14_payoff
         )
+        option_values[1, -1] = mesh_14
 
         option_values[0, :] = [0] * upper_mesh_length * 4
 
-        option_values[1, -1] = mesh_14
-        for t in range(upper_mesh_length):
-            upper_mesh_2t = upper_mesh[t, middle_of_mesh + 1]
-            upper_mesh_1t = upper_mesh[t, middle_of_mesh]
-            upper_mesh_0t = upper_mesh[t, middle_of_mesh - 1]
+        for t in range(upper_mesh_length + 1):
+            if t == upper_mesh_length:
+                continue
+
+            upper_mesh_2t = upper_mesh[t + 1, middle_of_mesh + 1]
+            upper_mesh_1t = upper_mesh[t + 1, middle_of_mesh]
+            upper_mesh_0t = upper_mesh[t + 1, middle_of_mesh - 1]
 
             mesh_21, mesh_22, mesh_23 = self._get_fine_mesh_upper_nodes(
                 discount_factor=self._get_discount_factor_fine_mesh(m),
@@ -252,7 +252,7 @@ class AdaptiveMeshModel:
             )
             mesh_24 = upper_mesh_1t
 
-            option_values[2, t : t + 4] = (
+            option_values[2, t * 4 : (t * 4) + 4] = (
                 mesh_21,
                 mesh_22,
                 mesh_23,
@@ -291,17 +291,12 @@ class AdaptiveMeshModel:
             h=self.fine_meshes[m]["price_step"],
             k=self.fine_meshes[m]["time_step"],
         )
-
         for t in range(length - 1, 0, -1):
-
             up_node = option_values[2, t]
             mid_node = option_values[1, t]
             down_node = option_values[0, t]
-
             expected_value = pu * up_node + pm * mid_node + pd * down_node
-
             option_values[1, t - 1] = discount_factor * expected_value
-
         return option_values
 
     def _price_option_on_fine_mesh(self, m: int):
@@ -315,11 +310,12 @@ class AdaptiveMeshModel:
         """
         assert m in self.fine_meshes, f"Malla fina {m} no inicializada"
 
-        self.fine_meshes[m]["option_values"] = (
-            self._build_fine_mesh_option_values_outter(m)
-        )
+        option_values = self._build_fine_mesh_option_values_outter(m)
+
+        print(option_values[:, 96 * 4 : 98 * 4])
+
         self.fine_meshes[m]["option_values"] = self._backward_induction_fine_mesh(
-            m, self.fine_meshes[m]["option_values"]
+            m, option_values
         )
 
     ###############################################################################################
