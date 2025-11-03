@@ -79,7 +79,6 @@ class RestrictedTrinomialModel:
             sigma=params.sigma,
             r=params.r,
             q=params.q,
-            k=self.k,
         )
 
         # Inicializar parámetros del árbol
@@ -99,7 +98,7 @@ class RestrictedTrinomialModel:
         self._calculate_probabilities()
 
         # Inicializar constructor del árbol de precios
-        self.tree_builder = TreeBuilder(S0=params.S0, u=self.u, d=self.d, steps=n_steps)
+        self.tree_builder = TreeBuilder()
 
         # Matrices para almacenar precios y valores
         self.S = None
@@ -131,33 +130,10 @@ class RestrictedTrinomialModel:
         Calcula las probabilidades neutrales al riesgo según Ecuación (9) del paper
         usando el ProbabilityHandler.
         """
-        try:
-            # Intentar calcular probabilidades con h actual
-            self.p_u, self.p_m, self.p_d = (
-                self.probability_handler.calculate_probabilities(self.h)
-            )
-        except ValueError:
-            # Si las probabilidades son inválidas, ajustar lambda
-            self._adjust_lambda_for_valid_probabilities()
-
-    def _adjust_lambda_for_valid_probabilities(self):
-        """
-        Ajusta lambda para obtener probabilidades válidas usando el método de Ritchken
-        """
-        # Usar el handler para buscar un lambda válido
-        (
-            self.lambda_param,
-            self.h,
-            self.p_u,
-            self.p_m,
-            self.p_d,
-        ) = self.probability_handler.find_valid_lambda(
-            start=1.0, stop=10.0, search_points=20
+        # Intentar calcular probabilidades con h actual
+        self.p_u, self.p_m, self.p_d = self.probability_handler.calculate_probabilities(
+            self.h, self.k
         )
-
-        # Actualizar factores de movimiento
-        self.u = np.exp(self.h)
-        self.d = 1.0 / self.u
 
     def _get_discount_factor(self) -> float:
         """
@@ -244,7 +220,9 @@ class RestrictedTrinomialModel:
             Precio de la opción barrera
         """
         # Construir árbol de precios
-        self.S = self.tree_builder.build_price_tree()
+        self.S = self.tree_builder.build_price_tree(
+            starting_value=self.params.S0, u=self.u, d=self.d, steps=self.n_steps
+        )
         assert self.S is not None
 
         # Crear matriz para valores de la opción
