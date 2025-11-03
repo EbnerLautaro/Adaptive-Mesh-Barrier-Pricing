@@ -25,6 +25,7 @@ def main():
     result = amm.price_option()
 
     print(result)
+    # print(amm.fine_meshes[1]["option_values"])
 
 
 if __name__ == "__main__":

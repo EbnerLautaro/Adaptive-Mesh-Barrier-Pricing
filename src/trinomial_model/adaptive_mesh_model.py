@@ -213,54 +213,56 @@ class AdaptiveMeshModel:
         assert not self.barrier_handler.is_past_barrier(final_middle_node_price)
         return node
 
-    def _build_fine_mesh_option_values_outter(self, m: int) -> np.ndarray:
-        """Construye la malla de precios fina para el nivel m
+    def _build_fine_mesh_option_values_outter(self, m: int):
+        """Construye la malla de precios fina para el nivel m"""
+        fine_mesh = self.fine_meshes[m]
 
-        La malla fina tiene nodos intermedios entre los nodos de la malla gruesa.
-        El paso espacial es h_m = h / 2^m
-        El paso temporal es k_m = k / 4^m
-
-        Args:
-            m: nivel de refinamiento (1, 2, ..., M)
-        """
-        length = self.N * m * 4
-
-        # inicializar la malla de precios fina
-        option_values = np.full((3, length), fill_value=FILL_VALUE)
-        # ponemos el ultimo nodo del medio
-        center = 1
-        option_values[center, length - 1] = self._get_final_middle_node_price(m)
-
-        # obtenemos la malla superior (coarse mesh o malla fina anterior)
         if m == 1:
             upper_mesh = self.coarse_mesh["option_values"]
-            upper_mesh_middle = self.N
+            middle_of_mesh = self.N
         else:
             upper_mesh = self.fine_meshes[m - 1]["option_values"]
-            upper_mesh_middle = 1
+            middle_of_mesh = 1
+        # temporal length in fine mesh
+        print(f"{upper_mesh.shape = }")
+        print(f"{len(upper_mesh[0]) = }")
+        upper_mesh_length = upper_mesh.shape[0]
 
-        # ancho de la malla superior
-        upper_mesh_length = upper_mesh.shape[1]
-        discount_factor = self._get_discount_factor_fine_mesh(m)
+        option_values = np.full((3, upper_mesh_length * 4), fill_value=FILL_VALUE)
 
-        print(upper_mesh.shape)
+        mesh_14_price = self.params.H * np.exp(self.u) / (2**m)
+        mesh_14_payoff = self.option_handler.payoff(mesh_14_price)
+        mesh_14 = self.barrier_handler.apply_barrier_condition(
+            mesh_14_price, mesh_14_payoff
+        )
 
-        for i in range(upper_mesh_length - 1, -1, -1):
-            print(f"{i = }, {upper_mesh_middle = }")
+        option_values[1, -1] = mesh_14
+        print(f"{mesh_14 = }")
+        for t in range(upper_mesh_length - 1, -1, -1):
 
-            n4 = upper_mesh[upper_mesh_middle, i]
-            n1, n2, n3 = self._get_fine_mesh_upper_nodes(
-                upper_node=upper_mesh[upper_mesh_middle + 1, i],
-                middle_node=n4,
-                down_node=upper_mesh[upper_mesh_middle - 1, i],
-                discount_factor=discount_factor,
-                h=self.fine_meshes[m]["price_step"],
-                k=self.fine_meshes[m]["time_step"],
+            upper_mesh_2t = upper_mesh[t, middle_of_mesh + 1]
+            upper_mesh_1t = upper_mesh[t, middle_of_mesh]
+            upper_mesh_0t = upper_mesh[t, middle_of_mesh - 1]
+
+            mesh_21, mesh_22, mesh_23 = self._get_fine_mesh_upper_nodes(
+                discount_factor=self._get_discount_factor_fine_mesh(m),
+                upper_node=upper_mesh_2t,
+                middle_node=upper_mesh_1t,
+                down_node=upper_mesh_0t,
+                h=fine_mesh["price_step"],
+                k=fine_mesh["time_step"],
             )
-            # insertamos los nodos en la malla fina
-            i_base = i * 4
-            option_values[center + 1, i_base : i_base + 4] = n1, n2, n3, n4
+            mesh_24 = upper_mesh_1t
 
+            option_values[2, t * 4 : (t * 4) + 4] = (
+                mesh_21,
+                mesh_22,
+                mesh_23,
+                mesh_24,
+            )
+            option_values[0, t * 4 : (t * 4) + 4] = (0, 0, 0, 0)
+
+        print(option_values.shape)
         return option_values
 
     def _get_fine_mesh_upper_nodes(
@@ -268,7 +270,7 @@ class AdaptiveMeshModel:
     ):
 
         res = []
-        for i in range(1, 4):  # i = 1, 2, 3
+        for i in range(3, 0, -1):  # i =  3,2,1
             pu, pm, pd = self.probability_handler.calculate_probabilities(
                 h=h, k=k, k_factor=(i / 4)
             )
@@ -283,19 +285,28 @@ class AdaptiveMeshModel:
         k_m = self.fine_meshes[m]["time_step"]
         return np.exp(-self.params.r * k_m)
 
-    def _backward_induction_fine_mesh(self, m: int):
+    def _backward_induction_fine_mesh(self, m: int, option_values):
         """Realiza la inducción hacia atrás en la m-ésima malla fina"""
-        option_values = self.fine_meshes[m]["option_values"]
-        pu, pm, pd = self.fine_meshes[m]["probabilities"]
+
         discount_factor = self._get_discount_factor_fine_mesh(m)
         length = option_values.shape[1]
 
-        # -2 para que no tome el ultimo nodo del medio ya calculado
-        for i in range(length - 1 - 1, -1, -1):  # i es paso de k
-            expected_value = pu * option_values[1, i + 1] + pm * option_values[0, i + 1]
-            option_values[0, i] = expected_value * discount_factor
+        pu, pm, pd = self.probability_handler.calculate_probabilities(
+            h=self.fine_meshes[m]["price_step"],
+            k=self.fine_meshes[m]["time_step"],
+        )
 
-        self.fine_meshes[m]["option_values"] = option_values
+        for t in range(length - 1, 0, -1):
+
+            up_node = option_values[2, t]
+            mid_node = option_values[1, t]
+            down_node = option_values[0, t]
+
+            expected_value = pu * up_node + pm * mid_node + pd * down_node
+
+            option_values[1, t - 1] = discount_factor * expected_value
+
+        return option_values
 
     def _price_option_on_fine_mesh(self, m: int):
         """Calcula el precio de la opción en la m-ésima malla fina
@@ -311,8 +322,9 @@ class AdaptiveMeshModel:
         self.fine_meshes[m]["option_values"] = (
             self._build_fine_mesh_option_values_outter(m)
         )
-
-        self._backward_induction_fine_mesh(m)
+        self.fine_meshes[m]["option_values"] = self._backward_induction_fine_mesh(
+            m, self.fine_meshes[m]["option_values"]
+        )
 
     ###############################################################################################
     #### PUBLIC METHODS
@@ -335,12 +347,9 @@ class AdaptiveMeshModel:
             else:
                 self._price_option_on_fine_mesh(m)
 
-        # Si no hay fine meshes (M=0), usar valor de coarse mesh
         if self.M == 0:
             option_value = self.coarse_mesh["option_values"][0, self.N]
         else:
-            # Usar el valor refinado de la última fine mesh en t=0
-            last_fine_mesh = self.fine_meshes[self.M]
-            option_value = last_fine_mesh["option_values"][0, 0]
+            option_value = self.fine_meshes[self.M]["option_values"][1, 0]
 
         return option_value
