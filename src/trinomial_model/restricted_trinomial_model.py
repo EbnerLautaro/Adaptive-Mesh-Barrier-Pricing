@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from trinomial_model.handlers.option_handler import OptionHandler
 from trinomial_model.handlers.probability_handler import ProbabilityHandler
 from .enums import OptionType, BarrierType
-from .tree_builder import TreeBuilder
+from .tree_builder import TreeHandler
 
 from .handlers.barrier_handler import BarrierHandler
 
@@ -98,7 +98,7 @@ class RestrictedTrinomialModel:
         self._calculate_probabilities()
 
         # Inicializar constructor del árbol de precios
-        self.tree_builder = TreeBuilder()
+        self.tree_builder = TreeHandler()
 
         # Matrices para almacenar precios y valores
         self.S = None

@@ -75,26 +75,3 @@ class ProbabilityHandler:
             raise ValueError(
                 f"Probabilidades inválidas: p_u={p_u}, p_m={p_m}, p_d={p_d}"
             )
-
-    # def find_valid_lambda(
-    #     self,
-    #     start: float = 3.0,
-    #     stop: float = 10.0,
-    #     search_points: int = 20,
-    # ) -> Tuple[float, float, float, float, float]:
-    #     """Busca un valor de lambda que genere probabilidades válidas.
-    #     Método de Ritchken para ajustar lambda cuando las probabilidades
-    #     iniciales no son válidas.
-    #     """
-
-    #     for lambda_try in np.linspace(start=start, stop=stop, num=search_points):
-
-    #         h_try = self.sigma * np.sqrt(lambda_try * self.k)
-    #         p_u, p_m, p_d = self.calculate_probabilities(h_try)
-
-    #         self._validate_probabilities(p_u, p_m, p_d)
-
-    #         return lambda_try, h_try, p_u, p_m, p_d
-
-    #     # Si no encontramos un lambda válido, lanzar error
-    #     raise ValueError("No se pudo encontrar un lambda válido en el rango ")

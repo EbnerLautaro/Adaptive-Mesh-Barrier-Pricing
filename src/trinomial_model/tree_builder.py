@@ -3,7 +3,7 @@ import numpy as np
 from trinomial_model import FILL_VALUE
 
 
-class TreeBuilder:
+class TreeHandler:
     """Construye el árbol trinomial de precios del subyacente.
 
     Attributes:
