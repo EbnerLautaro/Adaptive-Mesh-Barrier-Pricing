@@ -13,29 +13,9 @@ Características del modelo:
 """
 
 import numpy as np
-from dataclasses import dataclass
 
-from trinomial_model.handlers.option_handler import OptionHandler
-from trinomial_model.handlers.probability_handler import ProbabilityHandler
-from .enums import OptionType, BarrierType
-from .tree_builder import TreeHandler
-
-from .handlers.barrier_handler import BarrierHandler
-
-
-@dataclass
-class OptionParameters:
-    """Parámetros de la opción barrera"""
-
-    S0: float  # Precio actual del subyacente
-    K: float  # Precio de ejercicio (strike)
-    H: float  # Nivel de barrera
-    T: float  # Tiempo hasta vencimiento
-    r: float  # Tasa libre de riesgo
-    sigma: float  # Volatilidad
-    q: float = 0.0  # Dividendo continuo
-    option_type: OptionType = OptionType.CALL
-    barrier_type: BarrierType = BarrierType.UP_AND_OUT
+from trinomial_model.handlers import TreeHandler, ProbabilityHandler, BarrierHandler, OptionHandler
+from trinomial_model.utils import OptionParameters
 
 
 class RestrictedTrinomialModel:
@@ -115,7 +95,8 @@ class RestrictedTrinomialModel:
         if abs(ln_ratio) > 1e-10:  # Evitar división por cero
             # Calcular N según Hull
             N = int(
-                np.round(ln_ratio / (self.params.sigma * np.sqrt(3 * self.k)) + 0.5)
+                np.round(ln_ratio / (self.params.sigma *
+                         np.sqrt(3 * self.k)) + 0.5)
             )
 
             if N != 0:

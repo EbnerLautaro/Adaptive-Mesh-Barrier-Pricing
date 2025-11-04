@@ -2,10 +2,8 @@ import numpy as np
 from scipy.stats import norm
 
 from trinomial_model.enums import BarrierType, OptionType
-from trinomial_model.restricted_trinomial_model import (
-    RestrictedTrinomialModel,
-    OptionParameters,
-)
+from trinomial_model.models import RestrictedTrinomialModel
+from trinomial_model.utils import OptionParameters
 
 
 def black_scholes_call(S, K, T, r, sigma):

@@ -4,16 +4,14 @@ Todos los comentarios del código de abajo están basados en el paper de los aut
 """
 
 
-from dataclasses import dataclass
-from typing import Any, TypedDict
+from typing import TypedDict
 
 import numpy as np
 
 from trinomial_model import FILL_VALUE
-from trinomial_model.enums import BarrierType, OptionType
 
-from trinomial_model.handlers import BarrierHandler, OptionHandler, ProbabilityHandler
-from trinomial_model.tree_builder import TreeHandler
+from trinomial_model.handlers import BarrierHandler, OptionHandler, ProbabilityHandler, TreeHandler
+from trinomial_model.utils import OptionParameters
 
 
 class CoarseMeshDict(TypedDict):
@@ -30,21 +28,6 @@ class FineMeshDict(TypedDict):
     time_step_factor: float
     probabilities: tuple[float, float, float]
     option_values: np.ndarray
-
-
-@dataclass
-class OptionParameters:
-    """Parámetros de la opción barrera"""
-
-    S0: float  # Precio actual del subyacente
-    K: float  # Precio de ejercicio (strike)
-    H: float  # Nivel de barrera
-    T: float  # Tiempo hasta vencimiento
-    r: float  # Tasa libre de riesgo
-    sigma: float  # Volatilidad
-    q: float = 0.0  # Dividendo continuo
-    option_type: OptionType = OptionType.CALL
-    barrier_type: BarrierType = BarrierType.UP_AND_OUT
 
 
 class AdaptiveMeshModel:
@@ -281,7 +264,7 @@ class AdaptiveMeshModel:
         """
         Obtiene los nodos superiores de la malla fina (nodos B_2j)
         """
-        
+
         res = []
         for i in range(3, 0, -1):  # i =  3,2,1
             pu, pm, pd = self.probability_handler.calculate_probabilities(
@@ -300,7 +283,8 @@ class AdaptiveMeshModel:
     def _backward_induction_fine_mesh(self, m: int, option_values):
         """Realiza la inducción hacia atrás en la m-ésima malla fina"""
 
-        discount_factor = self._get_discount_factor(self.fine_meshes[m]["time_step_factor"])
+        discount_factor = self._get_discount_factor(
+            self.fine_meshes[m]["time_step_factor"])
         length = option_values.shape[0]
 
         pu, pm, pd = self.probability_handler.calculate_probabilities(

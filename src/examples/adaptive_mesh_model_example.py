@@ -1,6 +1,6 @@
-from trinomial_model.adaptive_mesh_model import AdaptiveMeshModel
+from trinomial_model.models import AdaptiveMeshModel
 from trinomial_model.enums import BarrierType, OptionType
-from trinomial_model.adaptive_mesh_model import OptionParameters
+from trinomial_model.utils import OptionParameters
 
 
 def main():
@@ -25,7 +25,7 @@ def main():
     result = amm.price_option()
 
     print("-" * 40)
-    print(f"{result = }")
+    print(f"{result=}")
 
     coarse_shape = amm.coarse_mesh["option_values"].shape
 
