@@ -1,4 +1,5 @@
 from trinomial_model.enums import OptionType
+import numpy as np
 
 
 class OptionHandler:
@@ -24,7 +25,7 @@ class OptionHandler:
         self.K: float = K
         self.option_type: OptionType = option_type
 
-    def payoff(self, S: float) -> float:
+    def payoff(self, S: np.ndarray):
         """Calcula el payoff de la opción según su tipo.
 
         Args:
@@ -34,6 +35,6 @@ class OptionHandler:
             Payoff de la opción
         """
         if self.option_type == OptionType.CALL:
-            return max(S - self.K, 0.0)
+            return np.maximum(S - self.K, 0.0)
         else:
-            return max(self.K - S, 0.0)
+            return np.maximum(self.K - S, 0.0)

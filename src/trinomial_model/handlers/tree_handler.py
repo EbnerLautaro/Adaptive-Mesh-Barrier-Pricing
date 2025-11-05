@@ -62,24 +62,10 @@ class TreeHandler:
         price_matrix[0, center] = starting_value
 
         # Construir árbol hacia adelante
-        for i in range(steps):  # paso temporal
-            for j in range(center - i, center + i + 1):  # columna válida
-
-                assert price_matrix[i, j] != FILL_VALUE, "Error: nodo no inicializado."
-
-                # Movimiento hacia arriba
-                assert j + 1 < price_matrix.shape[1]
-                price_matrix[i + 1, j + 1] = round(
-                    price_matrix[i, j] * u, self.round_to
-                )
-
-                # Sin Movimiento
-                price_matrix[i + 1, j] = round(price_matrix[i, j], self.round_to)
-
-                # Movimiento hacia abajo
-                assert j - 1 >= 0
-                price_matrix[i + 1, j - 1] = round(
-                    price_matrix[i, j] * d, self.round_to
-                )
+        for i in range(1, steps + 1):  # paso temporal (desde t=1 hasta t=N)
+            exponents = np.arange(-i, i + 1, 1)
+            price_matrix[i, center + exponents] = np.round(starting_value *
+                                                           (u ** np.maximum(exponents, 0)) *
+                                                           (d ** np.maximum(-exponents, 0)), decimals=self.round_to)
 
         return price_matrix

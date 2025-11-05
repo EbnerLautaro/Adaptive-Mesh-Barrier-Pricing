@@ -1,6 +1,7 @@
 """Manejo de condiciones de barrera para opciones."""
 
-from ..enums import BarrierType
+from trinomial_model.enums import BarrierType
+import numpy as np
 
 
 class BarrierHandler:
@@ -23,8 +24,8 @@ class BarrierHandler:
 
     def is_past_barrier(
         self,
-        price: float,
-    ) -> bool:
+        price: np.ndarray,
+    ):
         """Verifica si el precio ha cruzado la barrera.
 
         Args:
@@ -39,7 +40,7 @@ class BarrierHandler:
 
         return price <= self.barrier_level
 
-    def apply_barrier_condition(self, price: float, option_value: float) -> float:
+    def apply_barrier_condition(self, price: np.ndarray, option_value: np.ndarray):
         """Aplica las condiciones de barrera al valor de la opción.
 
         Lógica consolidada:
@@ -59,7 +60,7 @@ class BarrierHandler:
 
         # Knock-out: devolver valor solo si NO cruzó (is_beyond=False)
         if self.barrier_type.is_knockout():
-            return 0.0 if is_past_barrier else option_value
+            return np.where(is_past_barrier, 0.0, option_value)
 
         # Knock-in: devolver valor solo si SÍ cruzó (is_beyond=True)
-        return option_value if is_past_barrier else 0.0
+        return np.where(is_past_barrier, option_value, 0.0)
