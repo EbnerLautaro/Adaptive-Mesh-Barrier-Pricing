@@ -11,7 +11,7 @@ import numpy as np
 from trinomial_model import FILL_VALUE
 
 from trinomial_model.handlers import BarrierHandler, OptionHandler, ProbabilityHandler, TreeHandler
-from trinomial_model.utils import OptionParameters
+from trinomial_model.utils import OptionParameters, check_call_down_and_out_option
 
 
 class CoarseMeshDict(TypedDict):
@@ -21,12 +21,9 @@ class CoarseMeshDict(TypedDict):
 
 
 class FineMeshDict(TypedDict):
-    level: int
     price_step: float
     time_step: float
-    price_step_factor: float
     time_step_factor: float
-    probabilities: tuple[float, float, float]
     option_values: np.ndarray
 
 
@@ -52,14 +49,16 @@ class AdaptiveMeshModel:
         k0 = (h**2) / (lambd_param * sigma**2)
         N0 = T / k0
         N = int(np.floor(N0))
-        if N < 1:
-            # int(.4999) = 0
+        if N < 1:  # int(.4999) = 0
             N = 1
 
         k = T / N
         return (h, k, N)
 
     def __init__(self, params: OptionParameters, M: int):
+
+        check_call_down_and_out_option(params.barrier_type, params.option_type)
+
         self.params = params
         self.M = M
 
@@ -111,15 +110,10 @@ class AdaptiveMeshModel:
             k_m = self.k * k_factor
 
             fine_meshes[m] = {
-                "level": m,
                 "price_step": h_m,
                 "time_step": k_m,
-                "price_step_factor": h_factor,
                 "time_step_factor": k_factor,
-                "probabilities": self.probability_handler.calculate_probabilities(
-                    h=h_m, k=k_m
-                ),
-                "option_values": None,
+                "option_values": np.array([]),
             }
 
         return coarse_mesh, fine_meshes
@@ -145,7 +139,7 @@ class AdaptiveMeshModel:
             u=self.u,
             d=self.d,
         )
-        
+
         self.coarse_mesh["asset_prices"] = prices
 
     def _initialize_terminal_payoffs(self):
@@ -199,7 +193,7 @@ class AdaptiveMeshModel:
             + pm * V_next[1:-1]
             + pd * V_next[:-2]
         )
-        
+
         # Aplicar condición de barrera
         result = self.barrier_handler.apply_barrier_condition(
             S_curr, expected_values
@@ -249,7 +243,6 @@ class AdaptiveMeshModel:
         upper_mesh_length = upper_mesh.shape[0] - 1
 
         # Creamos una matriz para almacenar las 3 mallas finas
-        # VER SI SE PUEDE REUSAR
         option_values = np.full(
             (upper_mesh_length * 4, 3), fill_value=FILL_VALUE)
 
@@ -323,7 +316,7 @@ class AdaptiveMeshModel:
             h=self.fine_meshes[m]["price_step"],
             k=self.fine_meshes[m]["time_step"],
         )
-        
+
         for t in range(length - 1, 0, -1):
             up_node = option_values[t, 2]
             mid_node = option_values[t, 1]

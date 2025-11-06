@@ -20,9 +20,13 @@ def main():
         barrier_type=BarrierType.DOWN_AND_OUT,
     )
 
-    # Comparar diferentes niveles de refinamiento
-    amm = AdaptiveMeshModel(params, M=4)
-    result = amm.price_option()
+    try:
+        # Comparar diferentes niveles de refinamiento
+        amm = AdaptiveMeshModel(params, M=4)
+        result = amm.price_option()
+    except Exception as e:
+        print(e)
+        exit(1)
 
     print("-" * 40)
     print(f"{result=}")

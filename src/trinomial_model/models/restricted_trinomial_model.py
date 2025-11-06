@@ -15,7 +15,7 @@ Características del modelo:
 import numpy as np
 
 from trinomial_model.handlers import TreeHandler, ProbabilityHandler, BarrierHandler, OptionHandler
-from trinomial_model.utils import OptionParameters
+from trinomial_model.utils import OptionParameters, check_call_down_and_out_option
 
 
 class RestrictedTrinomialModel:
@@ -29,7 +29,7 @@ class RestrictedTrinomialModel:
     def __init__(
         self,
         params: OptionParameters,
-        n_steps: int,
+        n_steps: int = None,
         *,
         lambda_param: float = 3.0,
     ):
@@ -40,12 +40,24 @@ class RestrictedTrinomialModel:
             params: Parámetros de la opción
             n_steps: Número de pasos temporales
         """
+        
+        check_call_down_and_out_option(params.barrier_type, params.option_type)
+        
         self.params = params
-        self.n_steps = n_steps
-        self.k = params.T / n_steps  # Tamaño del paso temporal, `k` en el paper
 
         # Parámetro lambda del paper (λ = 3 es recomendado)
         self.lambda_param = lambda_param
+
+        if n_steps:
+            self.n_steps = n_steps
+            self.k = params.T / n_steps  # Tamaño del paso temporal, `k` en el paper
+            # Inicialmente, establecer h según lambda (derivacion de la ecuacion)
+            self.h = self.params.sigma * np.sqrt(self.lambda_param * self.k)
+        else:
+            self.h = (np.log(params.S0) - np.log(params.H))  # Paso de precio
+            self.k = (self.h**2) / (lambda_param *
+                                    params.sigma**2)  # Paso temporal
+            self.n_steps = round(params.T / self.k)
 
         # Handlers
         self.barrier_handler = BarrierHandler(
@@ -62,9 +74,6 @@ class RestrictedTrinomialModel:
         )
 
         # Inicializar parámetros del árbol
-
-        # Inicialmente, establecer h según lambda (derivacion de la ecuacion)
-        self.h = self.params.sigma * np.sqrt(self.lambda_param * self.k)
 
         # # Ajustar h para alineación con barrera si es necesario
         # self._adjust_for_barrier_alignment()
@@ -131,19 +140,19 @@ class RestrictedTrinomialModel:
         """
         assert self.S is not None and self.option_values is not None
 
-        for j in range(self.option_values.shape[1]):
-            if self.S[self.n_steps, j] == 0:
-                continue
+        # Obtenemos la ultima capa y filtramos los ceros con valid_prices
+        last_layer_prices = self.S[self.n_steps, :]
+        valid_prices = last_layer_prices != 0
 
-            # Calcular payoff
-            payoff = self.option_handler.payoff(self.S[self.n_steps, j])
+        # Calculamos payoffs y aplicamos barrera
+        payoffs = np.zeros_like(last_layer_prices)
+        payoffs[valid_prices] = self.option_handler.payoff(
+            last_layer_prices[valid_prices])
+        payoffs = self.barrier_handler.apply_barrier_condition(
+            last_layer_prices, payoffs)
 
-            # Aplicar condición de barrera
-            self.option_values[self.n_steps, j] = (
-                self.barrier_handler.apply_barrier_condition(
-                    self.S[self.n_steps, j], payoff
-                )
-            )
+        # Reemplazamos los valores de la ultima capa por los de sus payoffs
+        self.option_values[self.n_steps, :] = payoffs
 
     def _backward_induction(self, discount_factor: float) -> None:
         """
@@ -154,44 +163,43 @@ class RestrictedTrinomialModel:
         """
         assert self.S is not None and self.option_values is not None
 
-        center = self.n_steps
-
         for i in range(self.n_steps - 1, -1, -1):
-            for j in range(center - i, center + i + 1):
-                if self.S[i, j] == 0:
-                    continue
+            self._calculate_layer_values(i, discount_factor)
 
-                self.option_values[i, j] = self._calculate_node_value(
-                    i, j, discount_factor
-                )
-
-    def _calculate_node_value(self, i: int, j: int, discount_factor: float) -> float:
+    def _calculate_layer_values(self, i: int, discount_factor: float) -> None:
         """
-        Calcula el valor de la opción en un nodo considerando las barreras
+        Calcula los valores de opción para la capa i,
+        aplicando barrera y descuento en bloque.
 
         Args:
-            i: Índice temporal (fila)
-            j: Índice de precio (columna)
-            discount_factor: Factor de descuento e^(-r*dt)
-
-        Returns:
-            Valor de la opción en el nodo (i, j)
+            i: índice temporal (fila)
+            discount_factor: e^(-r*dt)
         """
-        assert (
-            self.S is not None and self.option_values is not None
-        ), "Árboles no construidos"
+        assert self.S is not None and self.option_values is not None
 
-        # Calcular valor esperado
-        expected_value = discount_factor * (
-            self.p_u * self.option_values[i + 1, j + 1]
-            + self.p_m * self.option_values[i + 1, j]
-            + self.p_d * self.option_values[i + 1, j - 1]
+        # Rango de columnas activas para esta capa
+        start = self.n_steps - i
+        end = self.n_steps + i + 1
+
+        # Obtenemos los payoffs de la capa i+1 (con barrera ya calculada)
+        V_next = self.option_values[i + 1, start - 1: end + 1]
+
+        # Obtenemos los precios de la capa i
+        S_curr = self.S[i, start:end]
+
+        # Valor esperado
+        expected_values = discount_factor * (
+            self.p_u * V_next[2:]
+            + self.p_m * V_next[1:-1]
+            + self.p_d * V_next[:-2]
         )
 
-        # Aplicar condición de barrera usando el BarrierHandler
-        return self.barrier_handler.apply_barrier_condition(
-            self.S[i, j], expected_value
+        # Aplicar condición de barrera
+        result = self.barrier_handler.apply_barrier_condition(
+            S_curr, expected_values
         )
+
+        self.option_values[i, start:end] = result
 
     def price_option(self) -> float:
         """

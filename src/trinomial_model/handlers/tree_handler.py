@@ -21,7 +21,7 @@ class TreeHandler:
             round_to: Número de decimales para redondear los precios en cada nodo
         """
         self.round_to = round_to
-
+        
     def _create_price_matrix(self, steps: int, fill_value) -> np.ndarray:
         """Inicializa la matriz de precios con un valor específico.
 
