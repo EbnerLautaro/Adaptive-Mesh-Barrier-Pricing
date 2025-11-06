@@ -14,7 +14,12 @@ Características del modelo:
 
 import numpy as np
 
-from trinomial_model.handlers import TreeHandler, ProbabilityHandler, BarrierHandler, OptionHandler
+from trinomial_model.handlers import (
+    TreeHandler,
+    ProbabilityHandler,
+    BarrierHandler,
+    OptionHandler,
+)
 from trinomial_model.utils import OptionParameters, check_call_down_and_out_option
 
 
@@ -29,7 +34,7 @@ class RestrictedTrinomialModel:
     def __init__(
         self,
         params: OptionParameters,
-        n_steps: int = None,
+        n_steps: int = None,  # type: ignore
         *,
         lambda_param: float = 3.0,
     ):
@@ -40,9 +45,9 @@ class RestrictedTrinomialModel:
             params: Parámetros de la opción
             n_steps: Número de pasos temporales
         """
-        
+
         check_call_down_and_out_option(params.barrier_type, params.option_type)
-        
+
         self.params = params
 
         # Parámetro lambda del paper (λ = 3 es recomendado)
@@ -54,9 +59,8 @@ class RestrictedTrinomialModel:
             # Inicialmente, establecer h según lambda (derivacion de la ecuacion)
             self.h = self.params.sigma * np.sqrt(self.lambda_param * self.k)
         else:
-            self.h = (np.log(params.S0) - np.log(params.H))  # Paso de precio
-            self.k = (self.h**2) / (lambda_param *
-                                    params.sigma**2)  # Paso temporal
+            self.h = np.log(params.S0) - np.log(params.H)  # Paso de precio
+            self.k = (self.h**2) / (lambda_param * params.sigma**2)  # Paso temporal
             self.n_steps = round(params.T / self.k)
 
         # Handlers
@@ -104,8 +108,7 @@ class RestrictedTrinomialModel:
         if abs(ln_ratio) > 1e-10:  # Evitar división por cero
             # Calcular N según Hull
             N = int(
-                np.round(ln_ratio / (self.params.sigma *
-                         np.sqrt(3 * self.k)) + 0.5)
+                np.round(ln_ratio / (self.params.sigma * np.sqrt(3 * self.k)) + 0.5)
             )
 
             if N != 0:
@@ -147,9 +150,11 @@ class RestrictedTrinomialModel:
         # Calculamos payoffs y aplicamos barrera
         payoffs = np.zeros_like(last_layer_prices)
         payoffs[valid_prices] = self.option_handler.payoff(
-            last_layer_prices[valid_prices])
+            last_layer_prices[valid_prices]
+        )
         payoffs = self.barrier_handler.apply_barrier_condition(
-            last_layer_prices, payoffs)
+            last_layer_prices, payoffs
+        )
 
         # Reemplazamos los valores de la ultima capa por los de sus payoffs
         self.option_values[self.n_steps, :] = payoffs
@@ -182,22 +187,18 @@ class RestrictedTrinomialModel:
         end = self.n_steps + i + 1
 
         # Obtenemos los payoffs de la capa i+1 (con barrera ya calculada)
-        V_next = self.option_values[i + 1, start - 1: end + 1]
+        V_next = self.option_values[i + 1, start - 1 : end + 1]
 
         # Obtenemos los precios de la capa i
         S_curr = self.S[i, start:end]
 
         # Valor esperado
         expected_values = discount_factor * (
-            self.p_u * V_next[2:]
-            + self.p_m * V_next[1:-1]
-            + self.p_d * V_next[:-2]
+            self.p_u * V_next[2:] + self.p_m * V_next[1:-1] + self.p_d * V_next[:-2]
         )
 
         # Aplicar condición de barrera
-        result = self.barrier_handler.apply_barrier_condition(
-            S_curr, expected_values
-        )
+        result = self.barrier_handler.apply_barrier_condition(S_curr, expected_values)
 
         self.option_values[i, start:end] = result
 

@@ -13,14 +13,14 @@ def compare_rtm_vs_amm_table3():
 
     # Parámetros base del ejemplo
     base_params = {
-        'K': 100.0,
-        'H': 90.0,
-        'T': 1.0,
-        'r': 0.10,
-        'sigma': 0.25,
-        'q': 0.0,
-        'option_type': OptionType.CALL,
-        'barrier_type': BarrierType.DOWN_AND_OUT
+        "K": 100.0,
+        "H": 90.0,
+        "T": 1.0,
+        "r": 0.10,
+        "sigma": 0.25,
+        "q": 0.0,
+        "option_type": OptionType.CALL,
+        "barrier_type": BarrierType.DOWN_AND_OUT,
     }
 
     # Precios iniciales a evaluar
@@ -28,10 +28,10 @@ def compare_rtm_vs_amm_table3():
 
     results = []
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("Tabla 3: Pricing down-and-out call con RTM vs AMM")
     print("Parámetros: K=100, r=10%, T=1yr, σ=0.25, H=90")
-    print("="*80)
+    print("=" * 80)
 
     for S0 in initial_prices:
         print(f"\n{'─'*80}")
@@ -41,15 +41,14 @@ def compare_rtm_vs_amm_table3():
         params = OptionParameters(S0=S0, **base_params)
 
         # Valor analítico (Merton 1973)
-        CBS = black_scholes_call(
-            S0, params.K, params.T, params.r, params.sigma)
+        CBS = black_scholes_call(S0, params.K, params.T, params.r, params.sigma)
         CBS_barrier = black_scholes_call(
             params.H**2 / S0, params.K, params.T, params.r, params.sigma
         )
         analytical = (
-            CBS -
-            (params.H / S0) ** (2 * (params.r / (params.sigma**2) - 0.5)) *
-            CBS_barrier
+            CBS
+            - (params.H / S0) ** (2 * (params.r / (params.sigma**2) - 0.5))
+            * CBS_barrier
         )
 
         # RTM (Restricted Trinomial Model)
@@ -100,32 +99,34 @@ def compare_rtm_vs_amm_table3():
         except Exception as e:
             print(f"  AMM falló: {e}")
 
-        results.append({
-            'S0': S0,
-            'Analítico': analytical,
-            'RTM_Valor': rtm_value,
-            'RTM_Steps': rtm_steps,
-            'RTM_Tiempo': rtm_time,
-            'AMM_Valor': amm_value,
-            'AMM_Level': amm_level,
-            'AMM_Tiempo': amm_time
-        })
+        results.append(
+            {
+                "S0": S0,
+                "Analítico": analytical,
+                "RTM_Valor": rtm_value,
+                "RTM_Steps": rtm_steps,
+                "RTM_Tiempo": rtm_time,
+                "AMM_Valor": amm_value,
+                "AMM_Level": amm_level,
+                "AMM_Tiempo": amm_time,
+            }
+        )
 
     df = pd.DataFrame(results)
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("RESUMEN COMPARATIVO")
-    print("="*80)
+    print("=" * 80)
     print(df.to_string(index=False))
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("ANÁLISIS DE ERROR")
-    print("="*80)
+    print("=" * 80)
 
-    df['RTM_Error'] = abs(df['RTM_Valor'] - df['Analítico'])
-    df['AMM_Error'] = abs(df['AMM_Valor'] - df['Analítico'])
+    df["RTM_Error"] = abs(df["RTM_Valor"] - df["Analítico"])
+    df["AMM_Error"] = abs(df["AMM_Valor"] - df["Analítico"])
 
-    print(df[['S0', 'Analítico', 'RTM_Error', 'AMM_Error']].to_string(index=False))
+    print(df[["S0", "Analítico", "RTM_Error", "AMM_Error"]].to_string(index=False))
 
     return df
 
